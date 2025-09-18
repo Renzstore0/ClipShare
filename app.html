@@ -32,13 +32,15 @@ input, textarea, select {
 
 /* header */
 header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.05);position:relative;z-index:30}
+.left-controls{display:flex;align-items:center;gap:10px}
+#backBtn{font-size:20px;cursor:pointer;padding:6px 8px;border-radius:8px; user-select: none; display:none}
+#menuBtn{font-size:20px;cursor:pointer;padding:6px 8px;border-radius:8px; user-select: none;}
+#menuBtn:hover,#backBtn:hover{background:rgba(79,70,229,0.06)}
 .brand{display:flex;align-items:center;gap:12px}
 .brand-logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#4f46e5);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
 h1{font-size:18px;margin:0;color:#4f46e5;font-weight:700}
 
 /* header buttons */
-#menuBtn{font-size:20px;cursor:pointer;padding:6px 8px;border-radius:8px; user-select: none;}
-#menuBtn:hover{background:rgba(79,70,229,0.06)}
 #profileBtn{cursor:pointer}
 #profileBtn img{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #4f46e5}
 
@@ -85,7 +87,7 @@ button.primary:hover{background:#4338ca}
 
 /* overlay view single paste */
 #viewOverlay{position:fixed;inset:0;background:rgba(10,11,15,.55);display:none;align-items:center;justify-content:center;z-index:80;padding:20px}
-#viewCard{background:#0f1724;color:#fff;max-width:900px;width:100%;border-radius:12px;padding:18px;box-shadow:0 24px 60px rgba(2,6,23,.6)}
+#viewCard{background:#0f1724;color:#fff;max-width:900px;width:100%;Border-radius:12px;border-radius:12px;padding:18px;box-shadow:0 24px 60px rgba(2,6,23,.6)}
 #viewCard h2{margin:0 0 6px 0;color:#fff}
 #viewCard .meta{font-size:13px;color:#9aa0ad;margin-bottom:10px}
 #viewCard pre{background:transparent;padding:12px;border-radius:8px;max-height:60vh;overflow:auto;color:#e6e6e6}
@@ -107,7 +109,14 @@ footer{padding:12px 20px;background:transparent;text-align:center;color:#7a7a82;
 
 <!-- header -->
 <header>
-  <div id="menuBtn" title="Daftar Paste (menu)">☰</div>
+  <div class="left-controls">
+    <!-- tombol back yang akan muncul saat sidebar terbuka (atau berfungsi history.back saat sidebar tertutup) -->
+    <button id="backBtn" title="Kembali" aria-label="Kembali">←</button>
+
+    <!-- tombol menu (garis tiga) -->
+    <div id="menuBtn" title="Daftar Paste (menu)">☰</div>
+  </div>
+
   <div class="brand"><div class="brand-logo">SB</div><h1>SnipBin</h1></div>
   <div id="profileBtn"><img id="profilePic" src="" alt="Profil"/></div>
 
@@ -195,6 +204,7 @@ let editId = null;
 
 /* elemen */
 const menuBtn = document.getElementById('menuBtn');
+const backBtn = document.getElementById('backBtn');
 const sidebar = document.getElementById('sidebar');
 const sidebarGrid = document.getElementById('sidebarGrid');
 const profileBtn = document.getElementById('profileBtn');
@@ -248,14 +258,58 @@ async function init(){
 init();
 
 /* UI toggles */
-menuBtn.addEventListener('click', (e)=>{ e.stopPropagation(); sidebar.style.left = sidebar.style.left === '0px' ? '-360px' : '0px'; });
+menuBtn.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  toggleSidebar();
+});
+backBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  // jika sidebar terbuka, tutup saja; jika tidak, lakukan history.back()
+  if(isSidebarOpen()){
+    closeSidebar();
+  } else {
+    // kembali ke halaman sebelumnya (jika ada)
+    if(window.history.length > 1){
+      window.history.back();
+    } else {
+      // fallback: tutup sidebar (pastikan)
+      closeSidebar();
+    }
+  }
+});
+
+function toggleSidebar(){
+  if(isSidebarOpen()){
+    closeSidebar();
+  } else {
+    openSidebar();
+  }
+}
+function isSidebarOpen(){
+  // periksa style inline atau posisi computed (toleransi)
+  return (sidebar.style.left === '0px' || window.getComputedStyle(sidebar).left === '0px');
+}
+function openSidebar(){
+  sidebar.style.left = '0px';
+  showBack();
+}
+function closeSidebar(){
+  // menutup sidebar dan sembunyikan back button
+  sidebar.style.left = '-360px';
+  hideBack();
+}
+
+/* profile button toggle */
 profileBtn.addEventListener('click', (e)=>{ e.stopPropagation(); profileMenu.style.display = profileMenu.style.display === 'block' ? 'none' : 'block'; });
 // close when clicking outside
 document.addEventListener('click', (e)=>{
-  if(!sidebar.contains(e.target) && e.target !== menuBtn) sidebar.style.left = '-360px';
+  if(!sidebar.contains(e.target) && e.target !== menuBtn && e.target !== backBtn) {
+    sidebar.style.left = '-360px';
+    hideBack();
+  }
   if(!profileMenu.contains(e.target) && e.target !== profileBtn && !profileBtn.contains(e.target)) profileMenu.style.display = 'none';
 });
-window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ sidebar.style.left='-360px'; profileMenu.style.display='none'; closeView(); } });
+window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ sidebar.style.left='-360px'; profileMenu.style.display='none'; closeView(); hideBack(); } });
 
 /* block pointer/click except allowed (keperluan UI drag protection) */
 function isAllowedTarget(el){
@@ -428,7 +482,7 @@ async function renderPastes(){
       openBtn.title = 'Buka';
       openBtn.setAttribute('aria-label','Buka');
       openBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12a3 3 0 1 0-3 3"/><path d="M2 12s2-4 10-4 10 4 10 4-2 4-10 4S2 12 2 12z"/></svg>';
-      openBtn.onclick = (ev)=>{ ev.stopPropagation(); openPasteView(p.id); sidebar.style.left='-360px'; };
+      openBtn.onclick = (ev)=>{ ev.stopPropagation(); openPasteView(p.id); sidebar.style.left='-360px'; hideBack(); };
 
       const copyBtn = document.createElement('button');
       copyBtn.className = 'btn copy';
@@ -470,6 +524,7 @@ async function editPaste(id){
     document.getElementById('pasteLanguage').value = data.language || '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
     sidebar.style.left = '-360px';
+    hideBack();
   }catch(err){ console.error('editPaste error', err); }
 }
 
@@ -555,6 +610,11 @@ async function logout(){ await supabaseClient.auth.signOut(); window.location.hr
 
 /* util */
 function escapeHtml(s){ return String(s || '').replace(/[&<>"']/g, function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];}); }
+
+/* helper tampil/sembunyi tombol back */
+function showBack(){ backBtn.style.display = 'inline-block'; }
+function hideBack(){ backBtn.style.display = 'none'; }
+
 </script>
 </body>
 </html>
