@@ -33,9 +33,10 @@ input, textarea, select {
 /* header */
 header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.05);position:relative;z-index:30}
 .left-controls{display:flex;align-items:center;gap:10px}
-#backBtn{font-size:20px;cursor:pointer;padding:6px 8px;border-radius:8px; user-select: none; display:none}
-#menuBtn{font-size:20px;cursor:pointer;padding:6px 8px;border-radius:8px; user-select: none;}
-#menuBtn:hover,#backBtn:hover{background:rgba(79,70,229,0.06)}
+
+/* MENU (garis 3) di header */
+#menuBtn{font-size:20px;cursor:pointer;padding:8px;border-radius:10px; user-select: none; display:inline-flex;align-items:center;justify-content:center}
+#menuBtn:hover{background:rgba(0,0,0,0.03)}
 .brand{display:flex;align-items:center;gap:12px}
 .brand-logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#4f46e5);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
 h1{font-size:18px;margin:0;color:#4f46e5;font-weight:700}
@@ -52,9 +53,35 @@ h1{font-size:18px;margin:0;color:#4f46e5;font-weight:700}
 #profileMenu button.logout{background:#ef4444;margin-top:6px}
 
 /* sidebar */
-#sidebar{position:fixed;left:-360px;top:0;width:360px;height:100%;background:#fff;border-right:1px solid #f0f0f8;padding:20px;box-shadow:2px 0 24px rgba(0,0,0,.06);transition:left .28s ease;z-index:50;overflow:auto}
+#sidebar{
+  position:fixed;left:-360px;top:0;width:360px;height:100%;background:#fff;border-right:1px solid #f0f0f8;padding:20px;box-shadow:2px 0 24px rgba(0,0,0,.06);transition:left .28s ease;z-index:70;overflow:auto;
+  /* agar tombol back di dalamnya tidak terpotong */
+  padding-top:60px;
+}
 #sidebar h2{margin:0 0 12px 0;color:#4f46e5}
 #sidebar .subtitle{font-size:13px;color:#666;margin-bottom:12px}
+
+/* tombol back yang diletakkan INSIDE sidebar (logo SVG) */
+#sidebarBackBtn{
+  position:absolute;
+  top:14px;
+  left:14px;
+  display:none; /* tampil saat sidebar dibuka */
+  align-items:center;
+  justify-content:center;
+  width:42px;
+  height:42px;
+  padding:6px;
+  border-radius:10px;
+  border:0;
+  background:transparent;
+  cursor:pointer;
+  user-select:none;
+  color:#4f46e5;
+  transition:background .16s ease, transform .06s ease;
+  z-index:80;
+}
+#sidebarBackBtn:hover{ background:rgba(79,70,229,0.06); transform:translateX(-2px); }
 
 /* sidebar grid (muncul saat hamburger) */
 #sidebarGrid{display:grid;grid-template-columns:1fr;gap:12px}
@@ -110,11 +137,8 @@ footer{padding:12px 20px;background:transparent;text-align:center;color:#7a7a82;
 <!-- header -->
 <header>
   <div class="left-controls">
-    <!-- tombol back yang akan muncul saat sidebar terbuka (atau berfungsi history.back saat sidebar tertutup) -->
-    <button id="backBtn" title="Kembali" aria-label="Kembali">←</button>
-
     <!-- tombol menu (garis tiga) -->
-    <div id="menuBtn" title="Daftar Paste (menu)">☰</div>
+    <div id="menuBtn" title="Daftar Paste (menu)" role="button" aria-label="Buka menu">☰</div>
   </div>
 
   <div class="brand"><div class="brand-logo">SB</div><h1>SnipBin</h1></div>
@@ -132,6 +156,14 @@ footer{padding:12px 20px;background:transparent;text-align:center;color:#7a7a82;
 
 <!-- sidebar: now contains the paste grid -->
 <div id="sidebar" aria-hidden="true">
+  <!-- tombol Back di dalam sidebar (ikon SVG) -->
+  <button id="sidebarBackBtn" aria-label="Kembali" title="Kembali" type="button">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1.5" y="1.5" width="21" height="21" rx="5" stroke="currentColor" stroke-width="1.6" opacity="0.12"></rect>
+      <path d="M14 18l-6-6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  </button>
+
   <h2>Daftar Paste</h2>
   <div class="subtitle">Menampilkan public + milikmu</div>
   <div id="sidebarGrid"></div>
@@ -202,11 +234,14 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 let currentUser = null;
 let editId = null;
 
+/* deteksi Android (user-agent) */
+const isAndroid = /Android/i.test(navigator.userAgent);
+
 /* elemen */
 const menuBtn = document.getElementById('menuBtn');
-const backBtn = document.getElementById('backBtn');
 const sidebar = document.getElementById('sidebar');
 const sidebarGrid = document.getElementById('sidebarGrid');
+const sidebarBackBtn = document.getElementById('sidebarBackBtn');
 const profileBtn = document.getElementById('profileBtn');
 const profileMenu = document.getElementById('profileMenu');
 const profilePic = document.getElementById('profilePic');
@@ -229,7 +264,6 @@ function avatarUrlFor(path){
   if(!path) return '';
   try{
     const res = supabaseClient.storage.from('avatars').getPublicUrl(path);
-    // v2 returns { data: { publicUrl } }
     return (res && res.data && res.data.publicUrl) ? res.data.publicUrl : '';
   }catch(e){
     console.error('avatarUrlFor error', e);
@@ -240,6 +274,9 @@ function avatarUrlFor(path){
 /* init */
 async function init(){
   try{
+    // sidebarBackBtn default: sembunyikan; akan ditampilkan pada openSidebar()
+    sidebarBackBtn.style.display = 'none';
+
     const { data: { session }, error } = await supabaseClient.auth.getSession();
     if(error){ console.error('getSession error', error); }
     if(!session || !session.user){ window.location.href = 'index.html'; return; }
@@ -258,25 +295,34 @@ async function init(){
 init();
 
 /* UI toggles */
+/* klik tombol menu -> buka/tutup sidebar */
 menuBtn.addEventListener('click', (e)=>{
   e.stopPropagation();
   toggleSidebar();
 });
-backBtn.addEventListener('click', (e) => {
+
+/* klik tombol back di dalam sidebar */
+sidebarBackBtn.addEventListener('click', (e) => {
   e.stopPropagation();
-  // jika sidebar terbuka, tutup saja; jika tidak, lakukan history.back()
   if(isSidebarOpen()){
+    // jika sidebar terbuka: tutup
     closeSidebar();
   } else {
-    // kembali ke halaman sebelumnya (jika ada)
+    // fallback: kembali history
     if(window.history.length > 1){
       window.history.back();
-    } else {
-      // fallback: tutup sidebar (pastikan)
-      closeSidebar();
     }
   }
 });
+
+/* close when clicking outside */
+document.addEventListener('click', (e)=>{
+  if(!sidebar.contains(e.target) && e.target !== menuBtn) {
+    closeSidebar();
+  }
+  if(!profileMenu.contains(e.target) && e.target !== profileBtn && !profileBtn.contains(e.target)) profileMenu.style.display = 'none';
+});
+window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ closeSidebar(); profileMenu.style.display='none'; closeView(); } });
 
 function toggleSidebar(){
   if(isSidebarOpen()){
@@ -287,29 +333,33 @@ function toggleSidebar(){
 }
 function isSidebarOpen(){
   // periksa style inline atau posisi computed (toleransi)
-  return (sidebar.style.left === '0px' || window.getComputedStyle(sidebar).left === '0px');
+  return (sidebar.style.left === '0px' || window.getComputedStyle(sidebar).left === '0px' || sidebar.classList.contains('open'));
 }
 function openSidebar(){
-  sidebar.style.left = '0px';
-  showBack();
+  // buka sidebar (untuk mobile/full) dan tampilkan back button di dalam sidebar
+  // jika layar kecil, kita ubah left ke 0 atau atur class open
+  if(window.matchMedia('(max-width:760px)').matches){
+    sidebar.style.left = '0px';
+  } else {
+    // desktop: gunakan transform via left 0 (tetap)
+    sidebar.style.left = '0px';
+  }
+  sidebar.classList.add('open');
+  sidebarBackBtn.style.display = 'inline-flex';
 }
 function closeSidebar(){
-  // menutup sidebar dan sembunyikan back button
-  sidebar.style.left = '-360px';
-  hideBack();
+  // tutup sidebar dan sembunyikan back button
+  if(window.matchMedia('(max-width:760px)').matches){
+    sidebar.style.left = '-100%';
+  } else {
+    sidebar.style.left = '-360px';
+  }
+  sidebar.classList.remove('open');
+  sidebarBackBtn.style.display = 'none';
 }
 
 /* profile button toggle */
 profileBtn.addEventListener('click', (e)=>{ e.stopPropagation(); profileMenu.style.display = profileMenu.style.display === 'block' ? 'none' : 'block'; });
-// close when clicking outside
-document.addEventListener('click', (e)=>{
-  if(!sidebar.contains(e.target) && e.target !== menuBtn && e.target !== backBtn) {
-    sidebar.style.left = '-360px';
-    hideBack();
-  }
-  if(!profileMenu.contains(e.target) && e.target !== profileBtn && !profileBtn.contains(e.target)) profileMenu.style.display = 'none';
-});
-window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ sidebar.style.left='-360px'; profileMenu.style.display='none'; closeView(); hideBack(); } });
 
 /* block pointer/click except allowed (keperluan UI drag protection) */
 function isAllowedTarget(el){
@@ -482,7 +532,7 @@ async function renderPastes(){
       openBtn.title = 'Buka';
       openBtn.setAttribute('aria-label','Buka');
       openBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12a3 3 0 1 0-3 3"/><path d="M2 12s2-4 10-4 10 4 10 4-2 4-10 4S2 12 2 12z"/></svg>';
-      openBtn.onclick = (ev)=>{ ev.stopPropagation(); openPasteView(p.id); sidebar.style.left='-360px'; hideBack(); };
+      openBtn.onclick = (ev)=>{ ev.stopPropagation(); openPasteView(p.id); closeSidebar(); };
 
       const copyBtn = document.createElement('button');
       copyBtn.className = 'btn copy';
@@ -523,8 +573,7 @@ async function editPaste(id){
     document.getElementById('pastePrivacy').value = data.privacy || 'public';
     document.getElementById('pasteLanguage').value = data.language || '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    sidebar.style.left = '-360px';
-    hideBack();
+    closeSidebar();
   }catch(err){ console.error('editPaste error', err); }
 }
 
@@ -610,10 +659,6 @@ async function logout(){ await supabaseClient.auth.signOut(); window.location.hr
 
 /* util */
 function escapeHtml(s){ return String(s || '').replace(/[&<>"']/g, function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];}); }
-
-/* helper tampil/sembunyi tombol back */
-function showBack(){ backBtn.style.display = 'inline-block'; }
-function hideBack(){ backBtn.style.display = 'none'; }
 
 </script>
 </body>
