@@ -38,7 +38,10 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 #menuBtn{font-size:20px;cursor:pointer;padding:8px;border-radius:10px; user-select: none; display:inline-flex;align-items:center;justify-content:center}
 #menuBtn:hover{background:rgba(0,0,0,0.03)}
 .brand{display:flex;align-items:center;gap:12px}
-.brand-logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#4f46e5);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+/* brand-logo now supports external image with fallback like register */
+.brand-logo{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.brand-logo img{width:100%;height:100%;object-fit:contain;display:block}
+.brand-logo .logo-fallback{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-weight:700;color:#4f46e5;background:transparent}
 h1{font-size:18px;margin:0;color:#4f46e5;font-weight:700}
 
 /* header buttons */
@@ -108,6 +111,7 @@ button.primary:hover{background:#4338ca}
 .btn.delete{background:#ef4444;color:#fff}
 .btn.copy{background:#06b6d4;color:#fff}
 .btn.open{background:#10b981;color:#fff}
+.btn.eye{background:#6d28d9;color:#fff}
 .btn svg{width:18px;height:18px;display:block}
 .link-share{color:#4f46e5;text-decoration:none;font-size:13px}
 
@@ -140,7 +144,11 @@ footer{padding:12px 20px;background:transparent;text-align:center;color:#7a7a82;
     <div id="menuBtn" title="Daftar Paste (menu)" role="button" aria-label="Buka menu">☰</div>
   </div>
 
-  <div class="brand"><div class="brand-logo">SB</div><h1>SnipBin</h1></div>
+  <div class="brand"><div class="brand-logo">
+    <!-- external logo image (matching register) with onerror fallback to text -->
+    <img src="https://pomf2.lain.la/f/w53ncnd.png" alt="SnipBin logo" onerror="this.style.display='none'; this.parentElement.querySelector('.logo-fallback').style.display='flex'" />
+    <span class="logo-fallback" aria-hidden="true">SB</span>
+  </div><h1>SnipBin</h1></div>
   <div id="profileBtn"><img id="profilePic" src="" alt="Profil"/></div>
 
   <!-- profile dropdown -->
@@ -276,7 +284,8 @@ function showSupabaseError(tag, err){
   try{
     // kalau ada error object Supabase
     const msg = err?.message || err?.error || JSON.stringify(err);
-    alert(`${tag}\n${msg}`);
+    alert(`${tag}
+${msg}`);
   }catch(e){
     alert(tag + ' (lihat console)');
   }
@@ -498,9 +507,10 @@ function clearForm(){
 /* render pastes INTO sidebarGrid with auto date from created_at */
 async function renderPastes(){
   try{
+    // note: intentionally NOT selecting `content` to avoid loading all texts into sidebar
     const { data: pastes, error } = await supabaseClient
       .from('pastes')
-      .select('id,user_id,title,content,privacy,language,created_at')
+      .select('id,user_id,title,privacy,language,created_at')
       .or(`privacy.eq.public,user_id.eq.${currentUser.id}`)
       .order('created_at', { ascending: false });
     if(error){ console.error(error); return; }
@@ -547,17 +557,50 @@ async function renderPastes(){
       dateEl.className = 'meta';
       card.appendChild(dateEl);
 
-      const pre = document.createElement('pre');
-      pre.className = `language-${p.language || ''}`;
-      pre.textContent = p.content;
-      card.appendChild(pre);
+      // content container starts hidden and is loaded only when user clicks the eye button
+      const contentPre = document.createElement('pre');
+      contentPre.className = `language-${p.language || ''}`;
+      contentPre.style.display = 'none';
+      contentPre.textContent = '';
+      card.appendChild(contentPre);
 
-      // action row: open, copy, share
+      // action row: eye (reveal), open (overlay), copy, share
       const row = document.createElement('div');
       row.style.display = 'flex';
       row.style.gap = '8px';
       row.style.marginTop = '8px';
       row.style.alignItems = 'center';
+
+      // eye button: load and toggle content inside the card (lazy-load)
+      const eyeBtn = document.createElement('button');
+      eyeBtn.className = 'btn eye';
+      eyeBtn.title = 'Tampilkan isi';
+      eyeBtn.setAttribute('aria-label','Tampilkan isi');
+      eyeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+      eyeBtn.onclick = async (ev)=>{
+        ev.stopPropagation();
+        try{
+          if(contentPre.dataset.loaded){
+            // toggle visibility
+            if(contentPre.style.display === 'none'){
+              contentPre.style.display = 'block';
+              Prism.highlightElement(contentPre);
+            } else {
+              contentPre.style.display = 'none';
+            }
+            return;
+          }
+          // fetch content on demand
+          const { data: fetched, error: fetchErr } = await supabaseClient.from('pastes').select('content,privacy,user_id,language').eq('id', p.id).single();
+          if(fetchErr){ showSupabaseError('Gagal mengambil isi paste:', fetchErr); return; }
+          if(fetched.privacy === 'private' && fetched.user_id !== currentUser.id){ alert('Paste ini private.'); return; }
+          contentPre.textContent = fetched.content || '';
+          contentPre.className = `language-${fetched.language || ''}`;
+          contentPre.dataset.loaded = '1';
+          contentPre.style.display = 'block';
+          Prism.highlightElement(contentPre);
+        }catch(err){ console.error('eyeBtn error', err); }
+      };
 
       const openBtn = document.createElement('button');
       openBtn.className = 'btn open';
@@ -571,7 +614,7 @@ async function renderPastes(){
       copyBtn.title = 'Salin';
       copyBtn.setAttribute('aria-label','Salin');
       copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-      copyBtn.onclick = (ev)=>{ ev.stopPropagation(); copyToClipboard(p.content); };
+      copyBtn.onclick = (ev)=>{ ev.stopPropagation(); copyToClipboard(contentPre.dataset.loaded ? contentPre.textContent : '[Isi belum dimuat — klik mata untuk tampilkan]'); };
 
       const share = document.createElement('a');
       share.className = 'link-share';
@@ -581,13 +624,13 @@ async function renderPastes(){
       share.target = '_blank';
       share.textContent = 'Share Link';
 
+      row.appendChild(eyeBtn);
       row.appendChild(openBtn);
       row.appendChild(copyBtn);
       row.appendChild(share);
       card.appendChild(row);
 
       sidebarGrid.appendChild(card);
-      Prism.highlightElement(pre);
     });
 
   }catch(err){ console.error('renderPastes error', err); }
