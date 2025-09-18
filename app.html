@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ClipShare – Modern Pastebin</title>
+
+<!-- Supabase + Prism -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.js"></script>
+
+<style>
+/* fonts & base */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+*{box-sizing:border-box}
+body{font-family:"Inter",system-ui,Arial,sans-serif;background:#f5f6fa;margin:0;color:#222;min-height:100vh;display:flex;flex-direction:column}
+
+/* disable selection globally except inputs */
+html,body,*{
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+input, textarea, select {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* header */
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.05);position:relative;z-index:30}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#4f46e5);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+h1{font-size:18px;margin:0;color:#4f46e5;font-weight:700}
+
+/* header buttons */
+#menuBtn{font-size:20px;cursor:pointer;padding:6px 8px;border-radius:8px; user-select: none;}
+#menuBtn:hover{background:rgba(79,70,229,0.06)}
+#profileBtn img{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #4f46e5;cursor:pointer}
+
+/* profile menu */
+#profileMenu{position:absolute;top:66px;right:18px;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(36,37,38,.08);padding:12px;width:240px;display:none;z-index:60}
+#profileMenu p{margin:0 0 8px 0;font-weight:600}
+#profileMenu input[type="text"],#profileMenu input[type="file"]{width:100%;padding:8px;border-radius:8px;border:1px solid #e6e6f2;margin-bottom:8px}
+#profileMenu button{width:100%;padding:9px;border-radius:8px;border:0;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer}
+#profileMenu button.logout{background:#ef4444;margin-top:6px}
+
+/* sidebar */
+#sidebar{position:fixed;left:-360px;top:0;width:360px;height:100%;background:#fff;border-right:1px solid #f0f0f8;padding:20px;box-shadow:2px 0 24px rgba(0,0,0,.06);transition:left .28s ease;z-index:50;overflow:auto}
+#sidebar h2{margin:0 0 12px 0;color:#4f46e5}
+#sidebar .subtitle{font-size:13px;color:#666;margin-bottom:12px}
+
+/* sidebar grid (muncul saat hamburger) */
+#sidebarGrid{display:grid;grid-template-columns:1fr;gap:12px}
+
+/* card inside sidebar */
+.paste-card{background:#fff;border-radius:10px;padding:12px;border:1px solid #f0f0ff;box-shadow:0 6px 18px rgba(12,13,38,.03);display:flex;flex-direction:column}
+.paste-card h3{margin:0 0 8px 0;font-size:14px;color:#333;display:flex;justify-content:space-between;align-items:center}
+.paste-card pre{background:#0b1220;color:#e6e6e6;padding:10px;border-radius:8px;overflow:auto;font-size:13px;line-height:1.35;margin:0}
+.paste-card .meta{font-size:12px;color:#888;margin-bottom:6px}
+
+/* main container */
+.container{max-width:1000px;margin:18px auto;padding:0 20px;flex:1}
+
+/* paste form card */
+#pasteForm{background:#fff;padding:18px;border-radius:14px;box-shadow:0 8px 30px rgba(12,13,38,.04);margin-bottom:22px}
+.input,textarea,select,button{width:100%;padding:12px;margin-bottom:10px;border-radius:10px;border:1px solid #e7e7f5;font-size:15px}
+textarea{min-height:120px;resize:vertical}
+button.primary{background:#4f46e5;color:white;border:0;font-weight:700;cursor:pointer}
+button.primary:hover{background:#4338ca}
+
+/* icon-only buttons */
+.actions{display:flex;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:8px;border-radius:8px;border:0;cursor:pointer;font-weight:600;height:36px;width:36px}
+.btn.edit{background:#f59e0b;color:#fff}
+.btn.delete{background:#ef4444;color:#fff}
+.btn.copy{background:#06b6d4;color:#fff}
+.btn.open{background:#10b981;color:#fff}
+.btn svg{width:18px;height:18px;display:block}
+.link-share{color:#4f46e5;text-decoration:none;font-size:13px}
+
+/* overlay view single paste */
+#viewOverlay{position:fixed;inset:0;background:rgba(10,11,15,.55);display:none;align-items:center;justify-content:center;z-index:80;padding:20px}
+#viewCard{background:#0f1724;color:#fff;max-width:900px;width:100%;border-radius:12px;padding:18px;box-shadow:0 24px 60px rgba(2,6,23,.6)}
+#viewCard h2{margin:0 0 6px 0;color:#fff}
+#viewCard .meta{font-size:13px;color:#9aa0ad;margin-bottom:10px}
+#viewCard pre{background:transparent;padding:12px;border-radius:8px;max-height:60vh;overflow:auto;color:#e6e6e6}
+
+/* toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:10px 14px;border-radius:10px;display:none;z-index:1000;font-weight:600}
+
+/* footer */
+footer{padding:12px 20px;background:transparent;text-align:center;color:#7a7a82;font-size:13px}
+
+/* responsive */
+@media (max-width:760px){
+  #sidebar{width:100%;left:-100%}
+  #sidebar.open{left:0}
+}
+</style>
+</head>
+<body>
+
+<!-- header -->
+<header>
+  <div id="menuBtn" title="Daftar Paste (menu)">☰</div>
+  <div class="brand"><div class="brand-logo">CS</div><h1>ClipShare</h1></div>
+  <div id="profileBtn"><img id="profilePic" src="" alt="Profil"/></div>
+
+  <!-- profile dropdown -->
+  <div id="profileMenu" aria-hidden="true">
+    <p id="profileName">User</p>
+    <input id="newName" type="text" placeholder="Ubah nama"/>
+    <input id="newPhoto" type="file" accept="image/*"/>
+    <button onclick="updateProfile()">Simpan Profil</button>
+    <button class="logout" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<!-- sidebar: now contains the paste grid -->
+<div id="sidebar" aria-hidden="true">
+  <h2>Daftar Paste</h2>
+  <div class="subtitle">Menampilkan public + milikmu</div>
+  <div id="sidebarGrid"></div>
+</div>
+
+<!-- main -->
+<div class="container">
+  <div id="pasteForm">
+    <input id="pasteTitle" class="input" placeholder="Masukkan Judul" />
+    <textarea id="pasteContent" placeholder="Tulis/Tempel teks atau kode..."></textarea>
+    <select id="pastePrivacy" class="input">
+      <option value="public">Public</option>
+      <option value="private">Private</option>
+    </select>
+    <select id="pasteLanguage" class="input">
+      <option value="">Plain Text</option>
+      <option value="javascript">JavaScript</option>
+      <option value="python">Python</option>
+      <option value="html">HTML</option>
+      <option value="css">CSS</option>
+    </select>
+    <div style="display:flex;gap:12px">
+      <button class="primary" onclick="savePaste()">Simpan Paste</button>
+      <button onclick="clearForm()">Bersihkan</button>
+    </div>
+  </div>
+</div>
+
+<!-- overlay untuk menampilkan paste tunggal -->
+<div id="viewOverlay" role="dialog" aria-modal="true">
+  <div id="viewCard">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div>
+        <h2 id="viewTitle"></h2>
+        <div id="viewDate" class="meta"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="viewCopyBtn" class="btn copy" title="Salin" aria-label="Salin">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <button onclick="closeView()" style="background:#ef4444;color:#fff;border:0;padding:8px;border-radius:8px;cursor:pointer">Tutup</button>
+      </div>
+    </div>
+    <pre id="viewContent" class=""></pre>
+    <div style="margin-top:12px;display:flex;justify-content:flex-end">
+      <a id="viewShare" class="link-share" href="#" target="_blank">Buka di tab baru</a>
+    </div>
+  </div>
+</div>
+
+<!-- toast -->
+<div id="toast">Tersalin</div>
+
+<!-- footer -->
+<footer>© 2025 by Renz. All rights reserved.</footer>
+
+<script>
+/* ==========================
+  GANTI dengan nilai Supabase mu
+========================== */
+const supabaseUrl = "https://ovocnshoodsjytoeahpy.supabase.co";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92b2Nuc2hvb2Rzanl0b2VhaHB5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTM2NDEsImV4cCI6MjA3Mzc2OTY0MX0.r-uug7AzRu5LmMWSU5zGquUbxydgiBk6qtbu5VfBOlg";
+const supabase = Supabase.createClient(supabaseUrl, supabaseKey);
+
+/* state */
+let currentUser = null;
+let editId = null;
+
+/* elemen */
+const menuBtn = document.getElementById('menuBtn');
+const sidebar = document.getElementById('sidebar');
+const sidebarGrid = document.getElementById('sidebarGrid');
+const profileBtn = document.getElementById('profileBtn');
+const profileMenu = document.getElementById('profileMenu');
+const profilePic = document.getElementById('profilePic');
+const profileNameEl = document.getElementById('profileName');
+const viewOverlay = document.getElementById('viewOverlay');
+const viewTitle = document.getElementById('viewTitle');
+const viewDate = document.getElementById('viewDate');
+const viewContent = document.getElementById('viewContent');
+const viewShare = document.getElementById('viewShare');
+const viewCopyBtn = document.getElementById('viewCopyBtn');
+const toastEl = document.getElementById('toast');
+
+/* helper - avatar public url */
+function avatarUrlFor(path){
+  if(!path) return '';
+  const res = supabase.storage.from('avatars').getPublicUrl(path);
+  return res?.data?.publicUrl || '';
+}
+
+/* init */
+async function init(){
+  const { data: { session } } = await supabase.auth.getSession();
+  if(!session){ window.location.href = 'index.html'; return; }
+  currentUser = session.user;
+  await loadProfile();
+  await renderPastes(); // will populate sidebarGrid
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  if(id) openPasteView(id);
+}
+init();
+
+/* UI toggles */
+menuBtn.addEventListener('click', (e)=>{ e.stopPropagation(); sidebar.style.left = sidebar.style.left === '0px' ? '-360px' : '0px'; });
+profileBtn.addEventListener('click', (e)=>{ e.stopPropagation(); profileMenu.style.display = profileMenu.style.display === 'block' ? 'none' : 'block'; });
+document.addEventListener('click', (e)=>{
+  if(!sidebar.contains(e.target) && e.target !== menuBtn) sidebar.style.left = '-360px';
+  if(!profileMenu.contains(e.target) && e.target !== profileBtn && !profileBtn.contains(e.target)) profileMenu.style.display = 'none';
+});
+window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ sidebar.style.left='-360px'; profileMenu.style.display='none'; closeView(); } });
+
+/* block pointer/click except allowed */
+function isAllowedTarget(el){
+  if(!el) return false;
+  const ALLOWED = ['button','input','textarea','select','a.link-share'];
+  let cur = el;
+  while(cur && cur !== document){
+    try{ if(cur.matches && cur.matches(ALLOWED.join(','))) return true; }catch(e){}
+    if(cur.id === 'menuBtn' || cur.id === 'profileBtn') return true;
+    if(cur.classList && cur.classList.contains('btn')) return true;
+    cur = cur.parentElement;
+  }
+  return false;
+}
+document.addEventListener('pointerdown', function(e){ if(isAllowedTarget(e.target)) return; e.preventDefault(); e.stopPropagation(); }, true);
+document.addEventListener('click', function(e){ if(isAllowedTarget(e.target)) return; e.preventDefault(); e.stopPropagation(); }, true);
+document.addEventListener('contextmenu', (e)=>{ if(e.target.closest('pre')) e.preventDefault(); });
+
+/* profile */
+async function loadProfile(){
+  try{
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
+    if(error && error.code !== 'PGRST116') console.error('loadProfile error', error);
+    if(!data){
+      await supabase.from('profiles').insert([{ id: currentUser.id, full_name: currentUser.user_metadata?.full_name || 'User', avatar_url: '' }]);
+      profileNameEl.textContent = currentUser.user_metadata?.full_name || 'User';
+      profilePic.src = '';
+    } else {
+      profileNameEl.textContent = data.full_name || 'User';
+      profilePic.src = data.avatar_url ? avatarUrlFor(data.avatar_url) : '';
+    }
+  }catch(err){ console.error(err); }
+}
+
+async function updateProfile(){
+  const newName = document.getElementById('newName').value.trim();
+  const file = document.getElementById('newPhoto').files[0];
+  let avatar_path;
+  if(file){
+    const ext = file.name.split('.').pop();
+    const filename = `${currentUser.id}_${Date.now()}.${ext}`;
+    const { data, error } = await supabase.storage.from('avatars').upload(filename, file, { upsert: true });
+    if(error){ alert('Upload foto gagal: ' + error.message); return; }
+    avatar_path = data.path;
+  }
+  const payload = { id: currentUser.id };
+  if(newName) payload.full_name = newName;
+  if(avatar_path) payload.avatar_url = avatar_path;
+  const { error } = await supabase.from('profiles').upsert(payload);
+  if(error){ alert('Gagal menyimpan profil: ' + error.message); return; }
+  await loadProfile();
+  document.getElementById('newName').value = '';
+  document.getElementById('newPhoto').value = '';
+  profileMenu.style.display = 'none';
+  showToast('Profil diperbarui');
+}
+
+/* paste CRUD */
+async function savePaste(){
+  const title = document.getElementById('pasteTitle').value.trim();
+  const content = document.getElementById('pasteContent').value.trim();
+  const privacy = document.getElementById('pastePrivacy').value;
+  const language = document.getElementById('pasteLanguage').value;
+  if(!title){ alert('Judul wajib diisi!'); return; }
+  if(!content){ alert('Isi teks paste terlebih dahulu'); return; }
+  try{
+    if(editId){
+      const { error } = await supabase.from('pastes').update({ title, content, privacy, language }).eq('id', editId);
+      if(error){ alert('Gagal update paste: ' + error.message); return; }
+      editId = null;
+    } else {
+      const { data, error } = await supabase.from('pastes').insert([{ user_id: currentUser.id, title, content, privacy, language }]).select().single();
+      if(error){ alert('Gagal menyimpan paste: ' + error.message); return; }
+    }
+    document.getElementById('pasteTitle').value = '';
+    document.getElementById('pasteContent').value = '';
+    document.getElementById('pastePrivacy').value = 'public';
+    document.getElementById('pasteLanguage').value = '';
+    await renderPastes();
+    showToast('Paste tersimpan');
+  }catch(err){ console.error(err); alert('Terjadi kesalahan saat menyimpan.'); }
+}
+
+function clearForm(){ editId = null; document.getElementById('pasteTitle').value=''; document.getElementById('pasteContent').value=''; document.getElementById('pastePrivacy').value='public'; document.getElementById('pasteLanguage').value=''; }
+
+/* render pastes INTO sidebarGrid with auto date from created_at */
+async function renderPastes(){
+  try{
+    const { data: pastes, error } = await supabase
+      .from('pastes')
+      .select('id,user_id,title,content,privacy,language,created_at')
+      .or(`privacy.eq.public,user_id.eq.${currentUser.id}`)
+      .order('created_at', { ascending: false });
+    if(error){ console.error(error); return; }
+
+    sidebarGrid.innerHTML = '';
+
+    pastes.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'paste-card';
+
+      const h = document.createElement('h3');
+      h.innerHTML = `<span>${escapeHtml(p.title || '—')}</span>`;
+
+      const ownerActions = document.createElement('span');
+      ownerActions.style.display = 'flex';
+      ownerActions.style.gap = '6px';
+      if(p.user_id === currentUser.id){
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn edit';
+        editBtn.title = 'Edit';
+        editBtn.setAttribute('aria-label','Edit');
+        editBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
+        editBtn.onclick = (ev)=>{ ev.stopPropagation(); editPaste(p.id); };
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn delete';
+        delBtn.title = 'Hapus';
+        delBtn.setAttribute('aria-label','Hapus');
+        delBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+        delBtn.onclick = (ev)=>{ ev.stopPropagation(); deletePaste(p.id); };
+        ownerActions.appendChild(editBtn);
+        ownerActions.appendChild(delBtn);
+      }
+      h.appendChild(ownerActions);
+      card.appendChild(h);
+
+      // auto-detected created_at date (from Supabase)
+      const dateEl = document.createElement('div');
+      const d = p.created_at ? new Date(p.created_at) : null;
+      if(d && !isNaN(d)) {
+        dateEl.textContent = `Disimpan: ${d.toLocaleString('id-ID', { dateStyle:'medium', timeStyle:'short' })}`;
+      } else {
+        dateEl.textContent = 'Disimpan: -';
+      }
+      dateEl.className = 'meta';
+      card.appendChild(dateEl);
+
+      const pre = document.createElement('pre');
+      pre.className = `language-${p.language || ''}`;
+      pre.textContent = p.content;
+      card.appendChild(pre);
+
+      // action row: open, copy, share
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.gap = '8px';
+      row.style.marginTop = '8px';
+      row.style.alignItems = 'center';
+
+      const openBtn = document.createElement('button');
+      openBtn.className = 'btn open';
+      openBtn.title = 'Buka';
+      openBtn.setAttribute('aria-label','Buka');
+      openBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12a3 3 0 1 0-3 3"/><path d="M2 12s2-4 10-4 10 4 10 4-2 4-10 4S2 12 2 12z"/></svg>';
+      openBtn.onclick = (ev)=>{ ev.stopPropagation(); openPasteView(p.id); sidebar.style.left='-360px'; };
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'btn copy';
+      copyBtn.title = 'Salin';
+      copyBtn.setAttribute('aria-label','Salin');
+      copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      copyBtn.onclick = (ev)=>{ ev.stopPropagation(); copyToClipboard(p.content); };
+
+      const share = document.createElement('a');
+      share.className = 'link-share';
+      const url = new URL(window.location.href);
+      url.searchParams.set('id', p.id);
+      share.href = url.toString();
+      share.target = '_blank';
+      share.textContent = 'Share Link';
+
+      row.appendChild(openBtn);
+      row.appendChild(copyBtn);
+      row.appendChild(share);
+      card.appendChild(row);
+
+      sidebarGrid.appendChild(card);
+      Prism.highlightElement(pre);
+    });
+
+  }catch(err){ console.error(err); }
+}
+
+/* edit */
+async function editPaste(id){
+  try{
+    const { data, error } = await supabase.from('pastes').select('*').eq('id', id).single();
+    if(error){ alert('Gagal ambil paste: ' + error.message); return; }
+    if(data.user_id !== currentUser.id){ alert('Hanya pembuat yang bisa edit'); return; }
+    editId = id;
+    document.getElementById('pasteTitle').value = data.title || '';
+    document.getElementById('pasteContent').value = data.content || '';
+    document.getElementById('pastePrivacy').value = data.privacy || 'public';
+    document.getElementById('pasteLanguage').value = data.language || '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    sidebar.style.left = '-360px';
+  }catch(err){ console.error(err); }
+}
+
+/* delete */
+async function deletePaste(id){
+  if(!confirm('Hapus paste ini?')) return;
+  try{
+    const { data, error } = await supabase.from('pastes').select('user_id').eq('id', id).single();
+    if(error){ alert('Gagal: '+error.message); return; }
+    if(data.user_id !== currentUser.id){ alert('Hanya pembuat yang bisa hapus'); return; }
+    await supabase.from('pastes').delete().eq('id', id);
+    await renderPastes();
+    showToast('Paste dihapus');
+  }catch(err){ console.error(err); }
+}
+
+/* open paste view by id (date shown too) */
+async function openPasteView(id){
+  try{
+    const { data, error } = await supabase.from('pastes').select('*').eq('id', id).single();
+    if(error){ alert('Paste tidak ditemukan'); return; }
+    if(data.privacy === 'private' && data.user_id !== currentUser.id){ alert('Paste ini private.'); return; }
+    viewTitle.textContent = data.title || '(Tanpa Judul)';
+    const d = data.created_at ? new Date(data.created_at) : null;
+    if(d && !isNaN(d)) {
+      viewDate.textContent = d.toLocaleString('id-ID', { dateStyle:'medium', timeStyle:'short' });
+    } else {
+      viewDate.textContent = '';
+    }
+    viewContent.className = `language-${data.language || ''}`;
+    viewContent.textContent = data.content;
+    viewShare.href = (()=>{ const u = new URL(window.location.href); u.searchParams.set('id', data.id); return u.toString(); })();
+    Prism.highlightElement(viewContent);
+    viewOverlay.style.display = 'flex';
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.set('id', id);
+    window.history.replaceState(null, '', newUrl.toString());
+  }catch(err){ console.error(err); }
+}
+
+function closeView(){
+  viewOverlay.style.display = 'none';
+  const newUrl = new URL(window.location.href);
+  newUrl.searchParams.delete('id');
+  window.history.replaceState(null, '', newUrl.toString());
+}
+
+/* copy helper */
+async function copyToClipboard(text){
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    showToast('Teks disalin');
+  }catch(err){
+    console.error('copy failed', err);
+    alert('Gagal menyalin');
+  }
+}
+
+/* wire view copy button */
+viewCopyBtn.addEventListener('click', (ev)=>{ ev.stopPropagation(); copyToClipboard(viewContent.textContent); });
+
+/* toast */
+let toastTimer = null;
+function showToast(msg = 'Tersalin'){
+  toastEl.textContent = msg;
+  toastEl.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ toastEl.style.display = 'none'; }, 1600);
+}
+
+/* logout */
+async function logout(){ await supabase.auth.signOut(); window.location.href = 'index.html'; }
+
+/* util */
+function escapeHtml(s){ return String(s || '').replace(/[&<>"']/g, function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];}); }
+</script>
+</body>
+</html>
