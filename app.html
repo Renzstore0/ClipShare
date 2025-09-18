@@ -55,7 +55,6 @@ h1{font-size:18px;margin:0;color:#4f46e5;font-weight:700}
 /* sidebar */
 #sidebar{
   position:fixed;left:-360px;top:0;width:360px;height:100%;background:#fff;border-right:1px solid #f0f0f8;padding:20px;box-shadow:2px 0 24px rgba(0,0,0,.06);transition:left .28s ease;z-index:70;overflow:auto;
-  /* agar tombol back di dalamnya tidak terpotong */
   padding-top:60px;
 }
 #sidebar h2{margin:0 0 12px 0;color:#4f46e5}
@@ -66,7 +65,7 @@ h1{font-size:18px;margin:0;color:#4f46e5;font-weight:700}
   position:absolute;
   top:14px;
   left:14px;
-  display:none; /* tampil saat sidebar dibuka */
+  display:none; /* tampil saat sidebar dibuka di Android */
   align-items:center;
   justify-content:center;
   width:42px;
@@ -271,10 +270,22 @@ function avatarUrlFor(path){
   }
 }
 
+/* debug helper to show structured error */
+function showSupabaseError(tag, err){
+  console.error(tag, err);
+  try{
+    // kalau ada error object Supabase
+    const msg = err?.message || err?.error || JSON.stringify(err);
+    alert(`${tag}\n${msg}`);
+  }catch(e){
+    alert(tag + ' (lihat console)');
+  }
+}
+
 /* init */
 async function init(){
   try{
-    // sidebarBackBtn default: sembunyikan; akan ditampilkan pada openSidebar()
+    // sidebarBackBtn default: sembunyikan; akan ditampilkan pada openSidebar() hanya untuk Android
     sidebarBackBtn.style.display = 'none';
 
     const { data: { session }, error } = await supabaseClient.auth.getSession();
@@ -332,23 +343,24 @@ function toggleSidebar(){
   }
 }
 function isSidebarOpen(){
-  // periksa style inline atau posisi computed (toleransi)
   return (sidebar.style.left === '0px' || window.getComputedStyle(sidebar).left === '0px' || sidebar.classList.contains('open'));
 }
 function openSidebar(){
-  // buka sidebar (untuk mobile/full) dan tampilkan back button di dalam sidebar
-  // jika layar kecil, kita ubah left ke 0 atau atur class open
   if(window.matchMedia('(max-width:760px)').matches){
     sidebar.style.left = '0px';
   } else {
-    // desktop: gunakan transform via left 0 (tetap)
     sidebar.style.left = '0px';
   }
   sidebar.classList.add('open');
-  sidebarBackBtn.style.display = 'inline-flex';
+
+  // TAMPILKAN tombol back di INSIDE sidebar hanya jika device adalah Android
+  if(isAndroid){
+    sidebarBackBtn.style.display = 'inline-flex';
+  } else {
+    sidebarBackBtn.style.display = 'none';
+  }
 }
 function closeSidebar(){
-  // tutup sidebar dan sembunyikan back button
   if(window.matchMedia('(max-width:760px)').matches){
     sidebar.style.left = '-100%';
   } else {
@@ -410,14 +422,23 @@ async function updateProfile(){
       const ext = file.name.split('.').pop();
       const filename = `${currentUser.id}_${Date.now()}.${ext}`;
       const { data, error } = await supabaseClient.storage.from('avatars').upload(filename, file, { upsert: true });
-      if(error){ alert('Upload foto gagal: ' + error.message); return; }
+      if(error){
+        // lebih rinci: tampilkan message & status
+        console.error('storage upload error', error);
+        showSupabaseError('Upload foto gagal:', error);
+        return;
+      }
       avatar_path = data.path;
     }
     const payload = { id: currentUser.id };
     if(newName) payload.full_name = newName;
     if(avatar_path) payload.avatar_url = avatar_path;
     const { error } = await supabaseClient.from('profiles').upsert(payload);
-    if(error){ alert('Gagal menyimpan profil: ' + error.message); return; }
+    if(error){
+      console.error('upsert profile error', error);
+      showSupabaseError('Gagal menyimpan profil:', error);
+      return;
+    }
     await loadProfile();
     document.getElementById('newName').value = '';
     document.getElementById('newPhoto').value = '';
@@ -425,7 +446,7 @@ async function updateProfile(){
     showToast('Profil diperbarui');
   }catch(e){
     console.error('updateProfile error', e);
-    alert('Terjadi kesalahan saat menyimpan profil.');
+    showSupabaseError('Terjadi kesalahan saat menyimpan profil.', e);
   }
 }
 
@@ -443,16 +464,27 @@ async function savePaste(){
   try{
     if(editId){
       const { error } = await supabaseClient.from('pastes').update({ title, content, privacy, language }).eq('id', editId);
-      if(error){ alert('Gagal update paste: ' + error.message); return; }
+      if(error){
+        console.error('update paste error', error);
+        showSupabaseError('Gagal update paste:', error);
+        return;
+      }
       editId = null;
     } else {
       const { data, error } = await supabaseClient.from('pastes').insert([{ user_id: currentUser.id, title, content, privacy, language }]).select().single();
-      if(error){ alert('Gagal menyimpan paste: ' + error.message); return; }
+      if(error){
+        console.error('insert paste error', error);
+        showSupabaseError('Gagal menyimpan paste:', error);
+        return;
+      }
     }
     clearForm();
     await renderPastes();
     showToast('Paste tersimpan');
-  }catch(err){ console.error('savePaste error', err); alert('Terjadi kesalahan saat menyimpan.'); }
+  }catch(err){
+    console.error('savePaste catch', err);
+    showSupabaseError('Terjadi kesalahan saat menyimpan.', err);
+  }
 }
 
 function clearForm(){
@@ -565,7 +597,7 @@ async function renderPastes(){
 async function editPaste(id){
   try{
     const { data, error } = await supabaseClient.from('pastes').select('*').eq('id', id).single();
-    if(error){ alert('Gagal ambil paste: ' + (error.message || error)); return; }
+    if(error){ showSupabaseError('Gagal ambil paste:', error); return; }
     if(data.user_id !== currentUser.id){ alert('Hanya pembuat yang bisa edit'); return; }
     editId = id;
     document.getElementById('pasteTitle').value = data.title || '';
@@ -582,7 +614,7 @@ async function deletePaste(id){
   if(!confirm('Hapus paste ini?')) return;
   try{
     const { data, error } = await supabaseClient.from('pastes').select('user_id').eq('id', id).single();
-    if(error){ alert('Gagal: '+(error.message||error)); return; }
+    if(error){ showSupabaseError('Gagal:', error); return; }
     if(data.user_id !== currentUser.id){ alert('Hanya pembuat yang bisa hapus'); return; }
     await supabaseClient.from('pastes').delete().eq('id', id);
     await renderPastes();
@@ -594,7 +626,7 @@ async function deletePaste(id){
 async function openPasteView(id){
   try{
     const { data, error } = await supabaseClient.from('pastes').select('*').eq('id', id).single();
-    if(error){ alert('Paste tidak ditemukan'); return; }
+    if(error){ showSupabaseError('Paste tidak ditemukan', error); return; }
     if(data.privacy === 'private' && data.user_id !== currentUser.id){ alert('Paste ini private.'); return; }
     viewTitle.textContent = data.title || '(Tanpa Judul)';
     const d = data.created_at ? new Date(data.created_at) : null;
