@@ -16,7 +16,9 @@
   .wrap{width:100%;max-width:420px}
   .card{background:#fff;border-radius:14px;padding:28px;border:1px solid rgba(110,76,246,0.06);box-shadow:0 12px 30px rgba(13,18,35,0.08)}
   .brand{text-align:center;margin-bottom:16px}
-  .logo{width:52px;height:52px;margin:0 auto 10px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#a78bfa);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+  .logo{width:52px;height:52px;margin:0 auto 10px;border-radius:12px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+  .logo img{width:100%;height:100%;object-fit:contain;display:block}
+  .logo-fallback{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-weight:700;color:var(--accent);background:transparent}
   h2{margin:0;color:var(--accent);font-size:1.35rem}
   p.lead{margin:8px 0 18px;color:#555;font-size:14px}
 
@@ -49,7 +51,10 @@
   <div class="wrap">
     <div class="card" role="form" aria-labelledby="register-heading">
       <div class="brand">
-        <div class="logo">SB</div>
+        <div class="logo">
+          <img src="https://pomf2.lain.la/f/w53ncnd.png" alt="SnipBin logo" onerror="this.style.display='none'; this.parentElement.querySelector('.logo-fallback').style.display='flex'" />
+          <span class="logo-fallback" aria-hidden="true">SB</span>
+        </div>
         <h2 id="register-heading">SnipBin – Daftar</h2>
         <p class="lead">Buat akun baru. Aman, cepat, ringan.</p>
       </div>
@@ -83,12 +88,16 @@
   </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  // Supabase config (samakan dengan login)
-  const supabaseUrl = "https://ovocnshoodsjytoeahpy.supabase.co";
-  const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92b2Nuc2hvb2Rzanl0b2VhaHB5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTM2NDEsImV4cCI6MjA3Mzc2OTY0MX0.r-uug7AzRu5LmMWSU5zGquUbxydgiBk6qtbu5VfBOlg";
-  const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+/*
+  IMPORTANT:
+  - This client-side form now sends the registration request to a server endpoint (/api/create-user).
+  - The server must use Supabase "service_role" key and call `supabase.auth.admin.createUser()` so the user is created without a confirmation email.
+  - Never put your service_role key in client-side code. Keep it on the server (env var).
 
+  Example server implementation (Node / Express) is provided separately.
+*/
+
+document.addEventListener('DOMContentLoaded', () => {
   const nameInput = document.getElementById('name');
   const emailInput = document.getElementById('email');
   const passwordInput = document.getElementById('password');
@@ -96,25 +105,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const togglePassword = document.getElementById('togglePassword');
   const authMsg = document.getElementById('authMsg');
 
-  // global toast element
+  // toast element
   const toast = document.createElement('div');
   toast.id = 'globalToast';
   toast.setAttribute('role', 'status');
   toast.setAttribute('aria-live', 'polite');
-  toast.style.position = 'fixed';
-  toast.style.top = '18px';
-  toast.style.left = '50%';
-  toast.style.transform = 'translateX(-50%) translateY(-10px)';
-  toast.style.padding = '12px 16px';
-  toast.style.borderRadius = '10px';
-  toast.style.boxShadow = '0 8px 30px rgba(13,18,35,0.12)';
-  toast.style.background = '#111827';
-  toast.style.color = '#fff';
-  toast.style.fontWeight = '700';
-  toast.style.zIndex = 9999;
-  toast.style.opacity = '0';
-  toast.style.pointerEvents = 'none';
-  toast.style.transition = 'opacity 260ms ease, transform 260ms ease';
+  Object.assign(toast.style, {
+    position: 'fixed', top: '18px', left: '50%', transform: 'translateX(-50%) translateY(-10px)',
+    padding: '12px 16px', borderRadius: '10px', boxShadow: '0 8px 30px rgba(13,18,35,0.12)',
+    background: '#111827', color: '#fff', fontWeight: '700', zIndex: 9999, opacity: '0', pointerEvents: 'none', transition: 'opacity 260ms ease, transform 260ms ease'
+  });
   document.body.appendChild(toast);
 
   let toastTimer = null;
@@ -125,28 +125,14 @@ document.addEventListener('DOMContentLoaded', () => {
     toast.style.opacity = '1';
     toast.style.pointerEvents = 'auto';
     toast.style.transform = 'translateX(-50%) translateY(0)';
-    toastTimer = setTimeout(()=>{
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateX(-50%) translateY(-10px)';
-      toastTimer = null;
-    }, duration);
+    toastTimer = setTimeout(()=>{ toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-10px)'; toastTimer = null; }, duration);
   }
+  function clearToast(){ if(toastTimer) { clearTimeout(toastTimer); toastTimer = null; } toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-10px)'; }
 
-  function clearToast(){
-    if(toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(-50%) translateY(-10px)';
-  }
-
-  function setLoading(on = true){
-    btn.disabled = on;
-    btn.style.opacity = on ? 0.7 : 1;
-    btn.textContent = on ? 'Memproses...' : 'Daftar';
-  }
+  function setLoading(on = true){ btn.disabled = on; btn.style.opacity = on ? 0.7 : 1; btn.textContent = on ? 'Memproses...' : 'Daftar'; }
 
   async function register(){
-    clearToast();
-    authMsg.textContent = '';
+    clearToast(); authMsg.textContent = '';
     const name = nameInput.value.trim();
     const email = emailInput.value.trim();
     const password = passwordInput.value;
@@ -159,40 +145,23 @@ document.addEventListener('DOMContentLoaded', () => {
     setLoading(true);
 
     try{
-      // sign up
-      const { data, error } = await supabaseClient.auth.signUp({ email, password });
-      if(error){
-        const msg = (error?.message || '').toLowerCase();
-        if(msg.includes('already registered') || msg.includes('user already exists') || msg.includes('duplicate')){
-          showToast('Email sudah terdaftar!', true);
-        }else{
-          showToast('Pendaftaran gagal: ' + (error.message || error), true);
-        }
+      // send to server endpoint that creates user using Supabase admin API
+      const res = await fetch('/api/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
+      });
+      const payload = await res.json();
+      if(!res.ok){
+        const errMsg = payload?.error || payload?.message || 'Pendaftaran gagal';
+        showToast(errMsg, true);
         setLoading(false);
         return;
       }
 
-      // Jika user langsung tersedia (tanpa verifikasi), upsert profile.
-      try{
-        const userId = data?.user?.id;
-        if(userId){
-          await supabaseClient.from('profiles').upsert({ id: userId, full_name: name });
-        }
-      }catch(e){
-        // jangan gagal total jika upsert profile gagal
-        console.error('upsert profile error', e);
-      }
-
-      // Jika Supabase mengirim email verifikasi, beri tahu user untuk cek email.
-      if(data?.user){
-        showToast('Pendaftaran berhasil. Mengalihkan...', false);
-        setTimeout(()=> window.location.href = 'app.html', 800);
-      }else{
-        // kasus: user belum aktif/harus verifikasi email
-        showToast('Pendaftaran berhasil. Cek email untuk verifikasi.', false, 5000);
-        // arahkan ke halaman login untuk user login setelah verifikasi
-        setTimeout(()=> window.location.href = 'index.html', 1400);
-      }
+      // success
+      showToast('Pendaftaran berhasil...', false);
+      setTimeout(()=> window.location.href = 'app.html', 800);
     }catch(e){
       console.error(e);
       showToast('Terjadi kesalahan. Coba lagi.', true);
@@ -204,18 +173,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const svgEye = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
   const svgEyeOff = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 19c-4.97 0-9-3.58-10-7a13.89 13.89 0 012.4-4.02M9.88 9.88A3 3 0 0115 12"/><path d="M3 3l18 18"/></svg>';
   let visible = false;
-  function setEye(v){
-    visible = v;
-    passwordInput.type = visible ? 'text' : 'password';
-    togglePassword.setAttribute('aria-pressed', String(visible));
-    togglePassword.setAttribute('aria-label', visible ? 'Sembunyikan password' : 'Tampilkan password');
-    togglePassword.innerHTML = visible ? svgEyeOff : svgEye;
-    if(visible) passwordInput.focus();
-  }
+  function setEye(v){ visible = v; passwordInput.type = visible ? 'text' : 'password'; togglePassword.setAttribute('aria-pressed', String(visible)); togglePassword.setAttribute('aria-label', visible ? 'Sembunyikan password' : 'Tampilkan password'); togglePassword.innerHTML = visible ? svgEyeOff : svgEye; if(visible) passwordInput.focus(); }
   setEye(false);
   togglePassword.addEventListener('click', ()=> setEye(!visible));
 
-  // event handlers
+  // events
   btn.addEventListener('click', register);
   document.addEventListener('keydown', (e) => {
     if(e.key === 'Enter' && (document.activeElement === nameInput || document.activeElement === emailInput || document.activeElement === passwordInput)){
