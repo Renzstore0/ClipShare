@@ -39,7 +39,8 @@ h1{font-size:18px;margin:0;color:#4f46e5;font-weight:700}
 /* header buttons */
 #menuBtn{font-size:20px;cursor:pointer;padding:6px 8px;border-radius:8px; user-select: none;}
 #menuBtn:hover{background:rgba(79,70,229,0.06)}
-#profileBtn img{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #4f46e5;cursor:pointer}
+#profileBtn{cursor:pointer}
+#profileBtn img{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #4f46e5}
 
 /* profile menu */
 #profileMenu{position:absolute;top:66px;right:18px;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(36,37,38,.08);padding:12px;width:240px;display:none;z-index:60}
@@ -115,8 +116,8 @@ footer{padding:12px 20px;background:transparent;text-align:center;color:#7a7a82;
     <p id="profileName">User</p>
     <input id="newName" type="text" placeholder="Ubah nama"/>
     <input id="newPhoto" type="file" accept="image/*"/>
-    <button onclick="updateProfile()">Simpan Profil</button>
-    <button class="logout" onclick="logout()">Logout</button>
+    <button id="saveProfileBtn">Simpan Profil</button>
+    <button class="logout" id="logoutBtn">Logout</button>
   </div>
 </header>
 
@@ -144,8 +145,8 @@ footer{padding:12px 20px;background:transparent;text-align:center;color:#7a7a82;
       <option value="css">CSS</option>
     </select>
     <div style="display:flex;gap:12px">
-      <button class="primary" onclick="savePaste()">Simpan Paste</button>
-      <button onclick="clearForm()">Bersihkan</button>
+      <button class="primary" id="savePasteBtn" type="button">Simpan Paste</button>
+      <button id="clearFormBtn" type="button">Bersihkan</button>
     </div>
   </div>
 </div>
@@ -162,7 +163,7 @@ footer{padding:12px 20px;background:transparent;text-align:center;color:#7a7a82;
         <button id="viewCopyBtn" class="btn copy" title="Salin" aria-label="Salin">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
-        <button onclick="closeView()" style="background:#ef4444;color:#fff;border:0;padding:8px;border-radius:8px;cursor:pointer">Tutup</button>
+        <button id="closeViewBtn" style="background:#ef4444;color:#fff;border:0;padding:8px;border-radius:8px;cursor:pointer">Tutup</button>
       </div>
     </div>
     <pre id="viewContent" class=""></pre>
@@ -184,7 +185,9 @@ footer{padding:12px 20px;background:transparent;text-align:center;color:#7a7a82;
 ========================== */
 const supabaseUrl = "https://ovocnshoodsjytoeahpy.supabase.co";
 const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92b2Nuc2hvb2Rzanl0b2VhaHB5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTM2NDEsImV4cCI6MjA3Mzc2OTY0MX0.r-uug7AzRu5LmMWSU5zGquUbxydgiBk6qtbu5VfBOlg";
-const supabase = Supabase.createClient(supabaseUrl, supabaseKey);
+
+/* buat client dengan benar (nama client: supabaseClient) */
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 /* state */
 let currentUser = null;
@@ -205,37 +208,56 @@ const viewContent = document.getElementById('viewContent');
 const viewShare = document.getElementById('viewShare');
 const viewCopyBtn = document.getElementById('viewCopyBtn');
 const toastEl = document.getElementById('toast');
+const saveProfileBtn = document.getElementById('saveProfileBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+const savePasteBtn = document.getElementById('savePasteBtn');
+const clearFormBtn = document.getElementById('clearFormBtn');
+const closeViewBtn = document.getElementById('closeViewBtn');
 
 /* helper - avatar public url */
 function avatarUrlFor(path){
   if(!path) return '';
-  const res = supabase.storage.from('avatars').getPublicUrl(path);
-  return res?.data?.publicUrl || '';
+  try{
+    const res = supabaseClient.storage.from('avatars').getPublicUrl(path);
+    // v2 returns { data: { publicUrl } }
+    return (res && res.data && res.data.publicUrl) ? res.data.publicUrl : '';
+  }catch(e){
+    console.error('avatarUrlFor error', e);
+    return '';
+  }
 }
 
 /* init */
 async function init(){
-  const { data: { session } } = await supabase.auth.getSession();
-  if(!session){ window.location.href = 'index.html'; return; }
-  currentUser = session.user;
-  await loadProfile();
-  await renderPastes(); // will populate sidebarGrid
-  const params = new URLSearchParams(window.location.search);
-  const id = params.get('id');
-  if(id) openPasteView(id);
+  try{
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
+    if(error){ console.error('getSession error', error); }
+    if(!session || !session.user){ window.location.href = 'index.html'; return; }
+    currentUser = session.user;
+    await loadProfile();
+    await renderPastes(); // will populate sidebarGrid
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+    if(id) openPasteView(id);
+  }catch(err){
+    console.error('init error', err);
+    // jika terjadi error fatal, arahkan ke login
+    window.location.href = 'index.html';
+  }
 }
 init();
 
 /* UI toggles */
 menuBtn.addEventListener('click', (e)=>{ e.stopPropagation(); sidebar.style.left = sidebar.style.left === '0px' ? '-360px' : '0px'; });
 profileBtn.addEventListener('click', (e)=>{ e.stopPropagation(); profileMenu.style.display = profileMenu.style.display === 'block' ? 'none' : 'block'; });
+// close when clicking outside
 document.addEventListener('click', (e)=>{
   if(!sidebar.contains(e.target) && e.target !== menuBtn) sidebar.style.left = '-360px';
   if(!profileMenu.contains(e.target) && e.target !== profileBtn && !profileBtn.contains(e.target)) profileMenu.style.display = 'none';
 });
 window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ sidebar.style.left='-360px'; profileMenu.style.display='none'; closeView(); } });
 
-/* block pointer/click except allowed */
+/* block pointer/click except allowed (keperluan UI drag protection) */
 function isAllowedTarget(el){
   if(!el) return false;
   const ALLOWED = ['button','input','textarea','select','a.link-share'];
@@ -248,50 +270,65 @@ function isAllowedTarget(el){
   }
   return false;
 }
-document.addEventListener('pointerdown', function(e){ if(isAllowedTarget(e.target)) return; e.preventDefault(); e.stopPropagation(); }, true);
-document.addEventListener('click', function(e){ if(isAllowedTarget(e.target)) return; e.preventDefault(); e.stopPropagation(); }, true);
-document.addEventListener('contextmenu', (e)=>{ if(e.target.closest('pre')) e.preventDefault(); });
+document.addEventListener('pointerdown', function(e){ if(isAllowedTarget(e.target)) return; /* allow */ }, true);
+document.addEventListener('click', function(e){ if(isAllowedTarget(e.target)) return; /* allow */ }, true);
+document.addEventListener('contextmenu', (e)=>{ if(e.target.closest && e.target.closest('pre')) e.preventDefault(); });
 
 /* profile */
 async function loadProfile(){
   try{
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
-    if(error && error.code !== 'PGRST116') console.error('loadProfile error', error);
+    const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).single();
+    if(error && error.code !== 'PGRST116'){ console.error('loadProfile error', error); }
     if(!data){
-      await supabase.from('profiles').insert([{ id: currentUser.id, full_name: currentUser.user_metadata?.full_name || 'User', avatar_url: '' }]);
+      // buat record jika belum ada
+      const insertPayload = { id: currentUser.id, full_name: currentUser.user_metadata?.full_name || 'User', avatar_url: '' };
+      const { error: insErr } = await supabaseClient.from('profiles').insert([insertPayload]);
+      if(insErr) console.error('insert profile err', insErr);
       profileNameEl.textContent = currentUser.user_metadata?.full_name || 'User';
       profilePic.src = '';
     } else {
       profileNameEl.textContent = data.full_name || 'User';
       profilePic.src = data.avatar_url ? avatarUrlFor(data.avatar_url) : '';
     }
-  }catch(err){ console.error(err); }
+  }catch(err){ console.error('loadProfile catch', err); }
 }
 
+saveProfileBtn.addEventListener('click', updateProfile);
+logoutBtn.addEventListener('click', logout);
+
+/* update profile (upload avatar optional) */
 async function updateProfile(){
   const newName = document.getElementById('newName').value.trim();
   const file = document.getElementById('newPhoto').files[0];
   let avatar_path;
-  if(file){
-    const ext = file.name.split('.').pop();
-    const filename = `${currentUser.id}_${Date.now()}.${ext}`;
-    const { data, error } = await supabase.storage.from('avatars').upload(filename, file, { upsert: true });
-    if(error){ alert('Upload foto gagal: ' + error.message); return; }
-    avatar_path = data.path;
+  try{
+    if(file){
+      const ext = file.name.split('.').pop();
+      const filename = `${currentUser.id}_${Date.now()}.${ext}`;
+      const { data, error } = await supabaseClient.storage.from('avatars').upload(filename, file, { upsert: true });
+      if(error){ alert('Upload foto gagal: ' + error.message); return; }
+      avatar_path = data.path;
+    }
+    const payload = { id: currentUser.id };
+    if(newName) payload.full_name = newName;
+    if(avatar_path) payload.avatar_url = avatar_path;
+    const { error } = await supabaseClient.from('profiles').upsert(payload);
+    if(error){ alert('Gagal menyimpan profil: ' + error.message); return; }
+    await loadProfile();
+    document.getElementById('newName').value = '';
+    document.getElementById('newPhoto').value = '';
+    profileMenu.style.display = 'none';
+    showToast('Profil diperbarui');
+  }catch(e){
+    console.error('updateProfile error', e);
+    alert('Terjadi kesalahan saat menyimpan profil.');
   }
-  const payload = { id: currentUser.id };
-  if(newName) payload.full_name = newName;
-  if(avatar_path) payload.avatar_url = avatar_path;
-  const { error } = await supabase.from('profiles').upsert(payload);
-  if(error){ alert('Gagal menyimpan profil: ' + error.message); return; }
-  await loadProfile();
-  document.getElementById('newName').value = '';
-  document.getElementById('newPhoto').value = '';
-  profileMenu.style.display = 'none';
-  showToast('Profil diperbarui');
 }
 
 /* paste CRUD */
+savePasteBtn.addEventListener('click', savePaste);
+clearFormBtn.addEventListener('click', clearForm);
+
 async function savePaste(){
   const title = document.getElementById('pasteTitle').value.trim();
   const content = document.getElementById('pasteContent').value.trim();
@@ -301,28 +338,31 @@ async function savePaste(){
   if(!content){ alert('Isi teks paste terlebih dahulu'); return; }
   try{
     if(editId){
-      const { error } = await supabase.from('pastes').update({ title, content, privacy, language }).eq('id', editId);
+      const { error } = await supabaseClient.from('pastes').update({ title, content, privacy, language }).eq('id', editId);
       if(error){ alert('Gagal update paste: ' + error.message); return; }
       editId = null;
     } else {
-      const { data, error } = await supabase.from('pastes').insert([{ user_id: currentUser.id, title, content, privacy, language }]).select().single();
+      const { data, error } = await supabaseClient.from('pastes').insert([{ user_id: currentUser.id, title, content, privacy, language }]).select().single();
       if(error){ alert('Gagal menyimpan paste: ' + error.message); return; }
     }
-    document.getElementById('pasteTitle').value = '';
-    document.getElementById('pasteContent').value = '';
-    document.getElementById('pastePrivacy').value = 'public';
-    document.getElementById('pasteLanguage').value = '';
+    clearForm();
     await renderPastes();
     showToast('Paste tersimpan');
-  }catch(err){ console.error(err); alert('Terjadi kesalahan saat menyimpan.'); }
+  }catch(err){ console.error('savePaste error', err); alert('Terjadi kesalahan saat menyimpan.'); }
 }
 
-function clearForm(){ editId = null; document.getElementById('pasteTitle').value=''; document.getElementById('pasteContent').value=''; document.getElementById('pastePrivacy').value='public'; document.getElementById('pasteLanguage').value=''; }
+function clearForm(){
+  editId = null;
+  document.getElementById('pasteTitle').value='';
+  document.getElementById('pasteContent').value='';
+  document.getElementById('pastePrivacy').value='public';
+  document.getElementById('pasteLanguage').value='';
+}
 
 /* render pastes INTO sidebarGrid with auto date from created_at */
 async function renderPastes(){
   try{
-    const { data: pastes, error } = await supabase
+    const { data: pastes, error } = await supabaseClient
       .from('pastes')
       .select('id,user_id,title,content,privacy,language,created_at')
       .or(`privacy.eq.public,user_id.eq.${currentUser.id}`)
@@ -414,14 +454,14 @@ async function renderPastes(){
       Prism.highlightElement(pre);
     });
 
-  }catch(err){ console.error(err); }
+  }catch(err){ console.error('renderPastes error', err); }
 }
 
 /* edit */
 async function editPaste(id){
   try{
-    const { data, error } = await supabase.from('pastes').select('*').eq('id', id).single();
-    if(error){ alert('Gagal ambil paste: ' + error.message); return; }
+    const { data, error } = await supabaseClient.from('pastes').select('*').eq('id', id).single();
+    if(error){ alert('Gagal ambil paste: ' + (error.message || error)); return; }
     if(data.user_id !== currentUser.id){ alert('Hanya pembuat yang bisa edit'); return; }
     editId = id;
     document.getElementById('pasteTitle').value = data.title || '';
@@ -430,26 +470,26 @@ async function editPaste(id){
     document.getElementById('pasteLanguage').value = data.language || '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
     sidebar.style.left = '-360px';
-  }catch(err){ console.error(err); }
+  }catch(err){ console.error('editPaste error', err); }
 }
 
 /* delete */
 async function deletePaste(id){
   if(!confirm('Hapus paste ini?')) return;
   try{
-    const { data, error } = await supabase.from('pastes').select('user_id').eq('id', id).single();
-    if(error){ alert('Gagal: '+error.message); return; }
+    const { data, error } = await supabaseClient.from('pastes').select('user_id').eq('id', id).single();
+    if(error){ alert('Gagal: '+(error.message||error)); return; }
     if(data.user_id !== currentUser.id){ alert('Hanya pembuat yang bisa hapus'); return; }
-    await supabase.from('pastes').delete().eq('id', id);
+    await supabaseClient.from('pastes').delete().eq('id', id);
     await renderPastes();
     showToast('Paste dihapus');
-  }catch(err){ console.error(err); }
+  }catch(err){ console.error('deletePaste error', err); }
 }
 
 /* open paste view by id (date shown too) */
 async function openPasteView(id){
   try{
-    const { data, error } = await supabase.from('pastes').select('*').eq('id', id).single();
+    const { data, error } = await supabaseClient.from('pastes').select('*').eq('id', id).single();
     if(error){ alert('Paste tidak ditemukan'); return; }
     if(data.privacy === 'private' && data.user_id !== currentUser.id){ alert('Paste ini private.'); return; }
     viewTitle.textContent = data.title || '(Tanpa Judul)';
@@ -467,7 +507,7 @@ async function openPasteView(id){
     const newUrl = new URL(window.location.href);
     newUrl.searchParams.set('id', id);
     window.history.replaceState(null, '', newUrl.toString());
-  }catch(err){ console.error(err); }
+  }catch(err){ console.error('openPasteView error', err); }
 }
 
 function closeView(){
@@ -497,8 +537,9 @@ async function copyToClipboard(text){
   }
 }
 
-/* wire view copy button */
+/* wire view copy/close button */
 viewCopyBtn.addEventListener('click', (ev)=>{ ev.stopPropagation(); copyToClipboard(viewContent.textContent); });
+closeViewBtn.addEventListener('click', closeView);
 
 /* toast */
 let toastTimer = null;
@@ -510,7 +551,7 @@ function showToast(msg = 'Tersalin'){
 }
 
 /* logout */
-async function logout(){ await supabase.auth.signOut(); window.location.href = 'index.html'; }
+async function logout(){ await supabaseClient.auth.signOut(); window.location.href = 'index.html'; }
 
 /* util */
 function escapeHtml(s){ return String(s || '').replace(/[&<>"']/g, function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];}); }
