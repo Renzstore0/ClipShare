@@ -237,6 +237,23 @@ const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 /* buat client dengan benar (nama client: supabaseClient) */
 const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
+/* tambahan: cek session saat load halaman (menggunakan supabaseClient yang sudah dideklarasikan) */
+(async () => {
+  try {
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
+    if (error) {
+      console.error('getSession error:', error);
+      // tidak memblokir UI; init() juga melakukan pengecekan — ini hanya pemeriksaan awal
+    }
+    if (!session) {
+      // tidak ada user login → lempar balik ke login
+      window.location.href = 'index.html';
+    }
+  } catch (err) {
+    console.error('Session check failed', err);
+  }
+})();
+
 /* state */
 let currentUser = null;
 let editId = null;
@@ -284,8 +301,7 @@ function showSupabaseError(tag, err){
   try{
     // kalau ada error object Supabase
     const msg = err?.message || err?.error || JSON.stringify(err);
-    alert(`${tag}
-${msg}`);
+    alert(`${tag}\n${msg}`);
   }catch(e){
     alert(tag + ' (lihat console)');
   }
@@ -733,7 +749,7 @@ function showToast(msg = 'Tersalin'){
 async function logout(){ await supabaseClient.auth.signOut(); window.location.href = 'index.html'; }
 
 /* util */
-function escapeHtml(s){ return String(s || '').replace(/[&<>"']/g, function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];}); }
+function escapeHtml(s){ return String(s || '').replace(/[&<>"']/g, function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[m];}); }
 
 </script>
 </body>
