@@ -128,10 +128,33 @@ button.primary:hover{background:#4338ca}
 /* footer */
 footer{padding:12px 20px;background:transparent;text-align:center;color:#7a7a82;font-size:13px}
 
-/* responsive */
+/* share modal bottom-sheet */
+#shareModal{
+  position:fixed;left:0;right:0;bottom:-100%;background:linear-gradient(180deg,#ffffff,#f7f7fb);border-top-left-radius:14px;border-top-right-radius:14px;padding:16px 14px;box-shadow:0 -10px 40px rgba(2,6,23,.18);transition:bottom .28s ease;z-index:140;
+  max-width:760px;margin:0 auto;
+}
+#shareModal.open{bottom:0}
+#shareModal .dragger{width:60px;height:6px;background:#d6d6e0;border-radius:8px;margin:6px auto 12px auto;display:block}
+#shareModal h3{margin:0 0 8px 0;color:#111;font-size:16px}
+.share-grid{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start}
+.share-item{width:72px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.share-btn{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;border:0;cursor:pointer;box-shadow:0 6px 18px rgba(12,13,38,.06)}
+.share-label{font-size:12px;color:#333}
+
+/* icons colors (subtle) */
+.icon-bg-copy{background:#e8eef6}
+.icon-bg-wa{background:#e6f8ee}
+.icon-bg-wab{background:#eef8f2}
+.icon-bg-tg{background:#eaf5ff}
+.icon-bg-mail{background:#fff3e9}
+.icon-bg-dc{background:#f0f0fb}
+.icon-bg-fb{background:#e8eefc}
+
+/* small screens */
 @media (max-width:760px){
   #sidebar{width:100%;left:-100%}
   #sidebar.open{left:0}
+  .share-item{width:20%;min-width:72px}
 }
 </style>
 </head>
@@ -208,16 +231,40 @@ footer{padding:12px 20px;background:transparent;text-align:center;color:#7a7a82;
         <div id="viewDate" class="meta"></div>
       </div>
       <div style="display:flex;gap:8px">
-        <button id="viewCopyBtn" class="btn copy" title="Salin" aria-label="Salin">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <button id="viewCopyBtn" class="btn copy" title="Salin" aria-label="Salin" style="background:#06b6d4;color:#fff">
+          <!-- copy icon (clear) -->
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
+
+        <!-- share button (modern share icon) -->
+        <button id="viewShareBtn" class="btn open" title="Share" aria-label="Share" style="background:#4f46e5;color:#fff">
+          <!-- modern share icon: arrow exiting box -->
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path>
+            <path d="M12 3v10"></path>
+            <path d="M8 7l4-4 4 4"></path>
+          </svg>
+        </button>
+
         <button id="closeViewBtn" style="background:#ef4444;color:#fff;border:0;padding:8px;border-radius:8px;cursor:pointer">Tutup</button>
       </div>
     </div>
     <pre id="viewContent" class=""></pre>
     <div style="margin-top:12px;display:flex;justify-content:flex-end">
-      <a id="viewShare" class="link-share" href="#" target="_blank">Buka di tab baru</a>
+      <!-- fallback: jika user ingin langsung bisa share juga via button -->
+      <button id="viewShareInline" class="link-share" style="background:none;border:0;padding:0;cursor:pointer;color:#4f46e5;text-decoration:underline">Share</button>
     </div>
+  </div>
+</div>
+
+<!-- share modal (bottom sheet) -->
+<div id="shareModal" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="dragger"></div>
+  <h3>Bagikan tautan</h3>
+  <div id="shareDesc" style="font-size:13px;color:#666;margin-bottom:10px">Pilih cara membagikan</div>
+  <div class="share-grid" id="shareGrid"></div>
+  <div style="margin-top:12px;text-align:right">
+    <button id="closeShareModal" style="padding:8px 12px;border-radius:8px;border:0;background:#ef4444;color:#fff;cursor:pointer">Tutup</button>
   </div>
 </div>
 
@@ -243,10 +290,8 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
     const { data: { session }, error } = await supabaseClient.auth.getSession();
     if (error) {
       console.error('getSession error:', error);
-      // tidak memblokir UI; init() juga melakukan pengecekan — ini hanya pemeriksaan awal
     }
     if (!session) {
-      // tidak ada user login → lempar balik ke login
       window.location.href = 'index.html';
     }
   } catch (err) {
@@ -260,6 +305,7 @@ let editId = null;
 
 /* deteksi Android (user-agent) */
 const isAndroid = /Android/i.test(navigator.userAgent);
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 /* elemen */
 const menuBtn = document.getElementById('menuBtn');
@@ -274,7 +320,6 @@ const viewOverlay = document.getElementById('viewOverlay');
 const viewTitle = document.getElementById('viewTitle');
 const viewDate = document.getElementById('viewDate');
 const viewContent = document.getElementById('viewContent');
-const viewShare = document.getElementById('viewShare');
 const viewCopyBtn = document.getElementById('viewCopyBtn');
 const toastEl = document.getElementById('toast');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
@@ -282,6 +327,13 @@ const logoutBtn = document.getElementById('logoutBtn');
 const savePasteBtn = document.getElementById('savePasteBtn');
 const clearFormBtn = document.getElementById('clearFormBtn');
 const closeViewBtn = document.getElementById('closeViewBtn');
+
+const shareModal = document.getElementById('shareModal');
+const shareGrid = document.getElementById('shareGrid');
+const shareDesc = document.getElementById('shareDesc');
+const closeShareModal = document.getElementById('closeShareModal');
+const viewShareBtn = document.getElementById('viewShareBtn');
+const viewShareInline = document.getElementById('viewShareInline');
 
 /* helper - avatar public url */
 function avatarUrlFor(path){
@@ -299,7 +351,6 @@ function avatarUrlFor(path){
 function showSupabaseError(tag, err){
   console.error(tag, err);
   try{
-    // kalau ada error object Supabase
     const msg = err?.message || err?.error || JSON.stringify(err);
     alert(`${tag}\n${msg}`);
   }catch(e){
@@ -310,7 +361,6 @@ function showSupabaseError(tag, err){
 /* init */
 async function init(){
   try{
-    // sidebarBackBtn default: sembunyikan; akan ditampilkan pada openSidebar() hanya untuk Android
     sidebarBackBtn.style.display = 'none';
 
     const { data: { session }, error } = await supabaseClient.auth.getSession();
@@ -318,87 +368,38 @@ async function init(){
     if(!session || !session.user){ window.location.href = 'index.html'; return; }
     currentUser = session.user;
     await loadProfile();
-    await renderPastes(); // will populate sidebarGrid
+    await renderPastes();
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
     if(id) openPasteView(id);
   }catch(err){
     console.error('init error', err);
-    // jika terjadi error fatal, arahkan ke login
     window.location.href = 'index.html';
   }
 }
 init();
 
 /* UI toggles */
-/* klik tombol menu -> buka/tutup sidebar */
 menuBtn.addEventListener('click', (e)=>{
   e.stopPropagation();
   toggleSidebar();
 });
+sidebarBackBtn.addEventListener('click', (e) => { e.stopPropagation(); if(isSidebarOpen()){ closeSidebar(); } else { if(window.history.length > 1) window.history.back(); } });
 
-/* klik tombol back di dalam sidebar */
-sidebarBackBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  if(isSidebarOpen()){
-    // jika sidebar terbuka: tutup
-    closeSidebar();
-  } else {
-    // fallback: kembali history
-    if(window.history.length > 1){
-      window.history.back();
-    }
-  }
-});
-
-/* close when clicking outside */
 document.addEventListener('click', (e)=>{
-  if(!sidebar.contains(e.target) && e.target !== menuBtn) {
-    closeSidebar();
-  }
+  if(!sidebar.contains(e.target) && e.target !== menuBtn) closeSidebar();
   if(!profileMenu.contains(e.target) && e.target !== profileBtn && !profileBtn.contains(e.target)) profileMenu.style.display = 'none';
 });
-window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ closeSidebar(); profileMenu.style.display='none'; closeView(); } });
+window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ closeSidebar(); profileMenu.style.display='none'; closeView(); closeShare(); } });
 
-function toggleSidebar(){
-  if(isSidebarOpen()){
-    closeSidebar();
-  } else {
-    openSidebar();
-  }
-}
-function isSidebarOpen(){
-  return (sidebar.style.left === '0px' || window.getComputedStyle(sidebar).left === '0px' || sidebar.classList.contains('open'));
-}
-function openSidebar(){
-  if(window.matchMedia('(max-width:760px)').matches){
-    sidebar.style.left = '0px';
-  } else {
-    sidebar.style.left = '0px';
-  }
-  sidebar.classList.add('open');
+function toggleSidebar(){ if(isSidebarOpen()) closeSidebar(); else openSidebar(); }
+function isSidebarOpen(){ return (sidebar.style.left === '0px' || window.getComputedStyle(sidebar).left === '0px' || sidebar.classList.contains('open')); }
+function openSidebar(){ sidebar.style.left = '0px'; sidebar.classList.add('open'); if(isAndroid){ sidebarBackBtn.style.display = 'inline-flex'; } else { sidebarBackBtn.style.display = 'none'; } }
+function closeSidebar(){ if(window.matchMedia('(max-width:760px)').matches){ sidebar.style.left = '-100%'; } else { sidebar.style.left = '-360px'; } sidebar.classList.remove('open'); sidebarBackBtn.style.display = 'none'; }
 
-  // TAMPILKAN tombol back di INSIDE sidebar hanya jika device adalah Android
-  if(isAndroid){
-    sidebarBackBtn.style.display = 'inline-flex';
-  } else {
-    sidebarBackBtn.style.display = 'none';
-  }
-}
-function closeSidebar(){
-  if(window.matchMedia('(max-width:760px)').matches){
-    sidebar.style.left = '-100%';
-  } else {
-    sidebar.style.left = '-360px';
-  }
-  sidebar.classList.remove('open');
-  sidebarBackBtn.style.display = 'none';
-}
-
-/* profile button toggle */
+/* profile */
 profileBtn.addEventListener('click', (e)=>{ e.stopPropagation(); profileMenu.style.display = profileMenu.style.display === 'block' ? 'none' : 'block'; });
 
-/* block pointer/click except allowed (keperluan UI drag protection) */
 function isAllowedTarget(el){
   if(!el) return false;
   const ALLOWED = ['button','input','textarea','select','a.link-share'];
@@ -411,17 +412,16 @@ function isAllowedTarget(el){
   }
   return false;
 }
-document.addEventListener('pointerdown', function(e){ if(isAllowedTarget(e.target)) return; /* allow */ }, true);
-document.addEventListener('click', function(e){ if(isAllowedTarget(e.target)) return; /* allow */ }, true);
+document.addEventListener('pointerdown', function(e){ if(isAllowedTarget(e.target)) return; }, true);
+document.addEventListener('click', function(e){ if(isAllowedTarget(e.target)) return; }, true);
 document.addEventListener('contextmenu', (e)=>{ if(e.target.closest && e.target.closest('pre')) e.preventDefault(); });
 
-/* profile */
+/* profile load & update */
 async function loadProfile(){
   try{
     const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).single();
     if(error && error.code !== 'PGRST116'){ console.error('loadProfile error', error); }
     if(!data){
-      // buat record jika belum ada
       const insertPayload = { id: currentUser.id, full_name: currentUser.user_metadata?.full_name || 'User', avatar_url: '' };
       const { error: insErr } = await supabaseClient.from('profiles').insert([insertPayload]);
       if(insErr) console.error('insert profile err', insErr);
@@ -437,7 +437,6 @@ async function loadProfile(){
 saveProfileBtn.addEventListener('click', updateProfile);
 logoutBtn.addEventListener('click', logout);
 
-/* update profile (upload avatar optional) */
 async function updateProfile(){
   const newName = document.getElementById('newName').value.trim();
   const file = document.getElementById('newPhoto').files[0];
@@ -448,7 +447,6 @@ async function updateProfile(){
       const filename = `${currentUser.id}_${Date.now()}.${ext}`;
       const { data, error } = await supabaseClient.storage.from('avatars').upload(filename, file, { upsert: true });
       if(error){
-        // lebih rinci: tampilkan message & status
         console.error('storage upload error', error);
         showSupabaseError('Upload foto gagal:', error);
         return;
@@ -523,7 +521,6 @@ function clearForm(){
 /* render pastes INTO sidebarGrid with auto date from created_at */
 async function renderPastes(){
   try{
-    // note: intentionally NOT selecting `content` to avoid loading all texts into sidebar
     const { data: pastes, error } = await supabaseClient
       .from('pastes')
       .select('id,user_id,title,privacy,language,created_at')
@@ -562,7 +559,6 @@ async function renderPastes(){
       h.appendChild(ownerActions);
       card.appendChild(h);
 
-      // auto-detected created_at date (from Supabase)
       const dateEl = document.createElement('div');
       const d = p.created_at ? new Date(p.created_at) : null;
       if(d && !isNaN(d)) {
@@ -573,21 +569,18 @@ async function renderPastes(){
       dateEl.className = 'meta';
       card.appendChild(dateEl);
 
-      // content container starts hidden and is loaded only when user clicks the eye button
       const contentPre = document.createElement('pre');
       contentPre.className = `language-${p.language || ''}`;
       contentPre.style.display = 'none';
       contentPre.textContent = '';
       card.appendChild(contentPre);
 
-      // action row: eye (reveal), open (overlay), copy, share
       const row = document.createElement('div');
       row.style.display = 'flex';
       row.style.gap = '8px';
       row.style.marginTop = '8px';
       row.style.alignItems = 'center';
 
-      // eye button: load and toggle content inside the card (lazy-load)
       const eyeBtn = document.createElement('button');
       eyeBtn.className = 'btn eye';
       eyeBtn.title = 'Tampilkan isi';
@@ -597,7 +590,6 @@ async function renderPastes(){
         ev.stopPropagation();
         try{
           if(contentPre.dataset.loaded){
-            // toggle visibility
             if(contentPre.style.display === 'none'){
               contentPre.style.display = 'block';
               Prism.highlightElement(contentPre);
@@ -606,7 +598,6 @@ async function renderPastes(){
             }
             return;
           }
-          // fetch content on demand
           const { data: fetched, error: fetchErr } = await supabaseClient.from('pastes').select('content,privacy,user_id,language').eq('id', p.id).single();
           if(fetchErr){ showSupabaseError('Gagal mengambil isi paste:', fetchErr); return; }
           if(fetched.privacy === 'private' && fetched.user_id !== currentUser.id){ alert('Paste ini private.'); return; }
@@ -629,27 +620,46 @@ async function renderPastes(){
       copyBtn.className = 'btn copy';
       copyBtn.title = 'Salin';
       copyBtn.setAttribute('aria-label','Salin');
-      copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-      copyBtn.onclick = (ev)=>{ ev.stopPropagation(); copyToClipboard(contentPre.dataset.loaded ? contentPre.textContent : '[Isi belum dimuat — klik mata untuk tampilkan]'); };
+      copyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      copyBtn.onclick = async (ev)=>{ ev.stopPropagation(); copyFromLazy(contentPre, p.id); };
 
-      const share = document.createElement('a');
-      share.className = 'link-share';
+      // share button (buka modal share sheet)
+      const shareBtn = document.createElement('button');
+      shareBtn.className = 'btn open';
+      shareBtn.title = 'Share';
+      shareBtn.setAttribute('aria-label','Share');
+      shareBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 3v10"/><path d="M8 7l4-4 4 4"/></svg>';
       const url = new URL(window.location.href);
       url.searchParams.set('id', p.id);
-      share.href = url.toString();
-      share.target = '_blank';
-      share.textContent = 'Share Link';
+      shareBtn.onclick = (ev)=>{ ev.stopPropagation(); openShare(url.toString(), p.title || '(tanpa judul)', p.id); };
 
       row.appendChild(eyeBtn);
       row.appendChild(openBtn);
       row.appendChild(copyBtn);
-      row.appendChild(share);
+      row.appendChild(shareBtn);
       card.appendChild(row);
 
       sidebarGrid.appendChild(card);
     });
 
   }catch(err){ console.error('renderPastes error', err); }
+}
+
+/* lazy copy: ambil content jika belum dimuat, lalu salin */
+async function copyFromLazy(contentPre, pasteId){
+  try{
+    if(contentPre.dataset.loaded){
+      await copyToClipboard(contentPre.textContent);
+      return;
+    }
+    const { data: fetched, error: fetchErr } = await supabaseClient.from('pastes').select('content,privacy,user_id,language').eq('id', pasteId).single();
+    if(fetchErr){ showSupabaseError('Gagal mengambil isi paste:', fetchErr); return; }
+    if(fetched.privacy === 'private' && fetched.user_id !== currentUser.id){ alert('Paste ini private.'); return; }
+    contentPre.textContent = fetched.content || '';
+    contentPre.className = `language-${fetched.language || ''}`;
+    contentPre.dataset.loaded = '1';
+    await copyToClipboard(fetched.content || '');
+  }catch(err){ console.error('copyFromLazy error', err); alert('Gagal menyalin paste.'); }
 }
 
 /* edit */
@@ -696,12 +706,17 @@ async function openPasteView(id){
     }
     viewContent.className = `language-${data.language || ''}`;
     viewContent.textContent = data.content;
-    viewShare.href = (()=>{ const u = new URL(window.location.href); u.searchParams.set('id', data.id); return u.toString(); })();
     Prism.highlightElement(viewContent);
     viewOverlay.style.display = 'flex';
     const newUrl = new URL(window.location.href);
     newUrl.searchParams.set('id', id);
     window.history.replaceState(null, '', newUrl.toString());
+
+    // wire view share button to open share modal for this paste
+    const shareUrl = new URL(window.location.href);
+    shareUrl.searchParams.set('id', id);
+    viewShareBtn.onclick = (ev) => { ev.stopPropagation(); openShare(shareUrl.toString(), data.title || '(tanpa judul)', data.id); };
+    viewShareInline.onclick = (ev) => { ev.stopPropagation(); openShare(shareUrl.toString(), data.title || '(tanpa judul)', data.id); };
   }catch(err){ console.error('openPasteView error', err); }
 }
 
@@ -751,6 +766,231 @@ async function logout(){ await supabaseClient.auth.signOut(); window.location.hr
 /* util */
 function escapeHtml(s){ return String(s || '').replace(/[&<>"']/g, function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[m];}); }
 
+/* -----------------------
+   Share modal logic (dengan icon yang lebih mirip versi terbaru)
+   ----------------------- */
+
+function openShare(url, title, pasteId){
+  shareGrid.innerHTML = ''; // reset
+  shareDesc.textContent = title || 'Bagikan tautan ini';
+
+  const shareText = `${title}\n${url}`;
+
+  function addShareItem({ key, label, bgClass, onClick, svg }){
+    const item = document.createElement('div');
+    item.className = 'share-item';
+    const btn = document.createElement('button');
+    btn.className = 'share-btn ' + (bgClass || '');
+    btn.title = label;
+    btn.type = 'button';
+    btn.innerHTML = svg || '';
+    btn.addEventListener('click', onClick);
+    const lbl = document.createElement('div');
+    lbl.className = 'share-label';
+    lbl.textContent = label;
+    item.appendChild(btn);
+    item.appendChild(lbl);
+    shareGrid.appendChild(item);
+  }
+
+  // ICONS (SVG lebih menyerupai versi modern)
+  const svgCopy = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+    <rect x="4" y="4" width="11" height="11" rx="2"></rect>
+  </svg>`;
+
+  // WhatsApp (bubble + handset silhouette)
+  const svgWhatsApp = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+    <g stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12.12A9 9 0 1 0 11.01 21l-1.1.3.3-1.07A9 9 0 0 0 21 12.12z" fill="none"/>
+      <path d="M17.5 14.2c-.2-.1-1.2-.6-1.4-.7-.2-.1-.4-.1-.6.1-.2.2-.8.7-1 .8-.2.1-.4.1-.6 0-.2-.1-.8-.3-1.5-.9-.6-.6-1-1.4-1.1-1.6-.1-.2 0-.4.1-.6.1-.2.2-.5.3-.7.1-.2.1-.4 0-.6-.1-.2-.6-1.4-.8-1.9-.2-.5-.4-.4-.6-.4-.2 0-.4 0-.7 0-.3 0-.7.1-1 0-.3-.1-1.1-.4-1.7-.9" />
+      <path d="M16 8l-4 4" stroke-linecap="round"/>
+    </g>
+  </svg>`;
+
+  // WhatsApp Business — bubble dengan huruf B (stilis)
+  const svgWAB = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+    <g stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12A9 9 0 1 0 11 21l-1 .3.3-1A9 9 0 0 0 21 12z" fill="none"/>
+      <path d="M12.5 8.5h1a1.5 1.5 0 1 1 0 3h-1v2" />
+      <path d="M12 8v8" />
+    </g>
+  </svg>`;
+
+  // Telegram (paper plane modern)
+  const svgTelegram = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+    <path d="M22 2L11 13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M22 2l-7 20" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M11 13l-9 3 3-9 9-3z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+
+  // Mail (envelope modern)
+  const svgMail = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+    <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/>
+    <path d="M3 7l9 6 9-6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+
+  // Discord (controller-like face simplified)
+  const svgDiscord = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+    <path d="M20 4s-1.5 1-3.5 1.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M4 4s1.5 1 3.5 1.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="3" y="8" width="18" height="10" rx="3" stroke="currentColor" stroke-width="1.2" fill="none"/>
+    <circle cx="9" cy="13" r="1" fill="currentColor"/>
+    <circle cx="15" cy="13" r="1" fill="currentColor"/>
+  </svg>`;
+
+  // Facebook (stylized "f" like modern)
+  const svgFacebook = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+    <path d="M15 4h2v3h-2v1h2v3h-2v7h-3v-7h-2v-3h2V7a3 3 0 0 1 3-3z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+  </svg>`;
+
+  const svgNative = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+    <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M12 3v9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M8 7l4-4 4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+
+  // Add items (order matches request)
+  addShareItem({
+    key:'copy',
+    label:'Salin',
+    bgClass:'icon-bg-copy',
+    svg:svgCopy,
+    onClick: async () => { await copyToClipboard(url); }
+  });
+
+  addShareItem({
+    key:'whatsapp',
+    label:'WhatsApp',
+    bgClass:'icon-bg-wa',
+    svg:svgWhatsApp,
+    onClick: () => {
+      const text = encodeURIComponent(shareText);
+      if(isAndroid){
+        const intent = `intent://send?text=${text}#Intent;package=com.whatsapp;scheme=whatsapp;action=android.intent.action.SEND;end`;
+        window.location.href = intent;
+      } else {
+        window.open(`https://wa.me/?text=${text}`, '_blank');
+      }
+    }
+  });
+
+  addShareItem({
+    key:'wab',
+    label:'WA Bisnis',
+    bgClass:'icon-bg-wab',
+    svg:svgWAB,
+    onClick: () => {
+      const text = encodeURIComponent(shareText);
+      if(isAndroid){
+        const intent = `intent://send?text=${text}#Intent;package=com.whatsapp.w4b;scheme=whatsapp;action=android.intent.action.SEND;end`;
+        window.location.href = intent;
+      } else {
+        window.open(`https://wa.me/?text=${text}`, '_blank');
+      }
+    }
+  });
+
+  addShareItem({
+    key:'telegram',
+    label:'Telegram',
+    bgClass:'icon-bg-tg',
+    svg:svgTelegram,
+    onClick: () => {
+      const text = encodeURIComponent(shareText);
+      if(isIOS || isAndroid){
+        const tg = `tg://msg?text=${text}`;
+        setTimeout(()=>{ window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`, '_blank'); }, 700);
+        window.location.href = tg;
+      } else {
+        window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`, '_blank');
+      }
+    }
+  });
+
+  addShareItem({
+    key:'email',
+    label:'Email',
+    bgClass:'icon-bg-mail',
+    svg:svgMail,
+    onClick: () => {
+      const subject = encodeURIComponent(title || 'Tautan');
+      const body = encodeURIComponent(`${title}\n\n${url}`);
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    }
+  });
+
+  addShareItem({
+    key:'discord',
+    label:'Discord',
+    bgClass:'icon-bg-dc',
+    svg:svgDiscord,
+    onClick: () => {
+      if(isAndroid || isIOS){
+        window.location.href = `discord://discord.com/channels/@me`;
+        setTimeout(()=>{ window.open('https://discord.com/', '_blank'); }, 700);
+      } else {
+        window.open('https://discord.com/', '_blank');
+      }
+    }
+  });
+
+  addShareItem({
+    key:'facebook',
+    label:'Facebook',
+    bgClass:'icon-bg-fb',
+    svg:svgFacebook,
+    onClick: () => {
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+    }
+  });
+
+  addShareItem({
+    key:'native',
+    label:'Lainnya',
+    bgClass:'',
+    svg:svgNative,
+    onClick: async () => {
+      if(navigator.share){
+        try{
+          await navigator.share({ title: title, text: title, url: url });
+        }catch(e){
+          console.error('native share cancelled', e);
+        }
+      } else {
+        await copyToClipboard(url);
+        alert('Tautan disalin. Tempel di aplikasi yang Anda inginkan.');
+      }
+    }
+  });
+
+  // show modal
+  shareModal.classList.add('open');
+  shareModal.setAttribute('aria-hidden', 'false');
+}
+
+/* close share modal */
+function closeShare(){
+  shareModal.classList.remove('open');
+  shareModal.setAttribute('aria-hidden', 'true');
+}
+closeShareModal.addEventListener('click', closeShare);
+
+/* close share modal when tapping outside (small UX improvement) */
+document.addEventListener('click', (e) => {
+  if(shareModal.classList.contains('open')){
+    const inside = shareModal.contains(e.target);
+    const isShareBtn = e.target.closest && e.target.closest('.btn.open');
+    if(!inside && !isShareBtn){
+      closeShare();
+    }
+  }
+});
+
+/* small safety: close share modal on escape */
+window.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape') closeShare();
+});
 </script>
 </body>
 </html>
