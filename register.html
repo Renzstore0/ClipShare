@@ -1,53 +1,144 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>SnipBin – Daftar</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  :root{--accent:#6d28d9;--bg1:#eef2ff;--bg2:#f7f9ff}
+  /* Warna tema (sama seperti index/login) */
+  :root{
+    --accent: #6d28d9;
+    --bg1: #eef2ff;
+    --bg2: #f7f9ff;
+    --text: #111827;
+    --card: #fff;
+  }
+  [data-theme="dark"]{
+    --accent: #a78bfa;
+    --bg1: #0f172a;
+    --bg2: #1e293b;
+    --text: #f9fafb;
+    --card: #1e293b;
+  }
+
   *{box-sizing:border-box}
+  html,body,*{ -webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+  input, textarea, select { -webkit-user-select: text; user-select: text; }
+
   body{
     font-family:Inter,system-ui,Arial,sans-serif;
     background:linear-gradient(180deg,var(--bg1),var(--bg2));
-    margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;
+    color:var(--text);
+    margin:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:20px;
+    position:relative;
   }
-  .wrap{width:100%;max-width:420px}
-  .card{background:#fff;border-radius:14px;padding:28px;border:1px solid rgba(110,76,246,0.06);box-shadow:0 12px 30px rgba(13,18,35,0.08)}
-  .brand{text-align:center;margin-bottom:16px}
-  .logo{width:52px;height:52px;margin:0 auto 10px;border-radius:12px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
-  .logo img{width:100%;height:100%;object-fit:contain;display:block}
-  .logo-fallback{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-weight:700;color:var(--accent);background:transparent}
-  h2{margin:0;color:var(--accent);font-size:1.35rem}
-  p.lead{margin:8px 0 18px;color:#555;font-size:14px}
 
-  .input-group{position:relative;margin-bottom:14px}
+  #themeToggle{position:fixed;top:14px;right:14px;background:transparent;border:0;padding:8px;border-radius:10px;cursor:pointer;color:var(--text);z-index:999}
+  #themeToggle svg{width:20px;height:20px;display:block}
+
+  .wrap{width:100%;max-width:420px}
+  .card{background:var(--card);border-radius:14px;padding:28px;border:1px solid rgba(110,76,246,0.06);box-shadow:0 12px 30px rgba(13,18,35,0.08)}
+  .brand{text-align:center;margin-bottom:16px}
+  .logo{width:52px;height:52px;margin:0 auto 10px;border-radius:12px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;pointer-events:none}
+  .logo img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;user-select:none}
+  .logo-fallback{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-weight:700;color:var(--accent);background:transparent}
+  h2{margin:0;color:var(--accent);font-size:1.35rem;user-select:none}
+  /* p.lead mengikuti warna teks tema agar konsisten */
+  p.lead{margin:8px 0 18px;color:var(--text);font-size:14px;user-select:none}
+
+  .input-group{position:relative;margin-bottom:18px}
+  /* label menggunakan warna yang sama seperti index/login */
+  label{display:block;font-size:14px;color:#374151;font-weight:600;margin-bottom:6px}
+  /* warna label terang/gelap */
+  [data-theme="dark"] label{color:rgba(249,250,251,0.9)}
+
   input{
-    width:100%;padding:12px 44px 12px 12px;border-radius:10px;border:1px solid #e5e7eb;font-size:15px;outline:none;background:#fff;transition:border-color .12s, box-shadow .12s;line-height:1.2;
+    width:100%;
+    padding:12px 44px 12px 12px;
+    border-radius:10px;
+    border:1px solid #e5e7eb;
+    font-size:15px;
+    outline:none;
+    background:#fff;
+    transition:border-color .12s, box-shadow .12s;
+    line-height:1.2;
+    position:relative;
+    color:var(--text); /* teks input mengikuti tema */
   }
+
+  /* placeholder kontras, dan berbeda untuk mode gelap */
+  input::placeholder{ color:#9ca3af; }
+  [data-theme="dark"] input{ background: #0f1724; border-color: rgba(255,255,255,0.06); }
+  [data-theme="dark"] input::placeholder{ color: rgba(249,250,251,0.5); }
+
+  /* konsisten dengan login: ruang kanan 52px */
   input.with-eye{padding-right:52px}
+
   input:focus{box-shadow:0 0 0 4px rgba(109,40,217,0.12);border-color:var(--accent)}
 
-  .toggle-password{position:absolute;right:8px;top:50%;transform:translateY(-50%);height:36px;width:36px;border-radius:8px;border:0;background:transparent;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:#6b7280}
-  .toggle-password:active{transform:translateY(-50%) scale(.97)}
-  .toggle-password svg{display:block;pointer-events:none;transform:translateY(2px)}
+  /* tombol mata — ukuran & posisi mengikuti pola login */
+  .toggle-password{
+    position:absolute;
+    right:8px;                 /* sama seperti login */
+    top:65%;                   /* vertikal align yang pas */
+    transform:translateY(-50%);
+    height:28px;               /* ukuran sama seperti login */
+    width:28px;                /* ukuran sama seperti login */
+    border-radius:8px;
+    border:0;
+    background:transparent;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    color:#6b7280;
+    z-index:30;
+    padding:0;
+  }
+  .toggle-password svg{width:20px;height:20px;display:block;pointer-events:none}
+
+  .toggle-password:active{transform:translateY(-50%) scale(.98)}
+  .toggle-password:focus{outline: 3px solid rgba(109,40,217,0.12); outline-offset: 2px; border-radius:8px;}
 
   .primary{width:100%;padding:12px;border-radius:10px;border:0;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;font-size:15px;transition:transform .08s ease, box-shadow .08s ease}
   .primary:active{transform:translateY(1px)}
   .primary[disabled]{opacity:.6;cursor:not-allowed}
 
-  .muted{font-size:13px;color:#6b7280;text-align:center;margin-top:12px}
+  /* muted/footer sama dengan login/index */
+  .muted{font-size:13px;color:#6b7280;text-align:center;margin-top:12px;user-select:none}
   a.link{color:var(--accent);font-weight:600;text-decoration:none}
 
   #authMsg{margin-top:12px;text-align:center;font-weight:700;color:#dc2626;min-height:20px}
   #authMsg.success{color:#16a34a}
 
-  footer{margin-top:18px;font-size:12px;color:#6b7280;text-align:center}
-  @media (max-width:420px){.card{padding:20px}}
+  footer{margin-top:18px;font-size:12px;color:#6b7280;text-align:center;user-select:none}
+
+  /* MEDIA QUERY: lebih rapih di mobile kecil */
+  @media (max-width:420px){
+    .card{padding:20px}
+    /* gunakan nilai sama seperti login — tidak perlu padding-extra yang bikin tombol terlihat 'naik' */
+    input.with-eye{padding-right:52px}
+    .toggle-password{
+      right:8px;
+      height:28px;
+      width:28px;
+      padding:0;
+    }
+    .toggle-password svg{width:20px;height:20px}
+  }
 </style>
 </head>
 <body>
+  <button id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m8.66-12.34l-.7.7M5.34 18.66l-.7.7M21 12h1M2 12H1m16.66 6.66l-.7-.7M5.34 5.34l-.7-.7M12 5a7 7 0 100 14a7 7 0 000-14z"/></svg>
+  </button>
+
   <div class="wrap">
     <div class="card" role="form" aria-labelledby="register-heading">
       <div class="brand">
@@ -60,20 +151,28 @@
       </div>
 
       <div class="input-group">
-        <label for="name" class="sr-only">Nama</label>
-        <input id="name" type="text" placeholder="Nama lengkap" autocomplete="name" />
+        <label for="name">Nama</label>
+        <input id="name" type="text" placeholder="Masukkan nama Anda" autocomplete="name" />
       </div>
 
       <div class="input-group">
-        <label for="email" class="sr-only">Email</label>
-        <input id="email" type="email" placeholder="contoh@gmail.com" autocomplete="email" inputmode="email" />
+        <label for="email">Email</label>
+        <input id="email" type="email" placeholder="Masukkan email Anda" autocomplete="email" inputmode="email" />
       </div>
 
       <div class="input-group">
-        <label for="password" class="sr-only">Password</label>
+        <label for="password">Password</label>
         <input id="password" class="with-eye" type="password" placeholder="Masukkan password" autocomplete="new-password" />
         <button id="togglePassword" class="toggle-password" aria-pressed="false" aria-label="Tampilkan password" type="button">
-          <svg id="eyeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        </button>
+      </div>
+
+      <div class="input-group">
+        <label for="password2">Confirm Password</label>
+        <input id="password2" class="with-eye" type="password" placeholder="Ulangi password" autocomplete="new-password" />
+        <button id="togglePassword2" class="toggle-password" aria-pressed="false" aria-label="Tampilkan password kedua" type="button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
         </button>
       </div>
 
@@ -88,103 +187,162 @@
   </div>
 
 <script>
-/*
-  IMPORTANT:
-  - This client-side form now sends the registration request to a server endpoint (/api/create-user).
-  - The server must use Supabase "service_role" key and call `supabase.auth.admin.createUser()` so the user is created without a confirmation email.
-  - Never put your service_role key in client-side code. Keep it on the server (env var).
+/* -------------------------
+   Supabase config (sama seperti contoh)
+   ------------------------- */
+const supabaseUrl = "https://ovocnshoodsjytoeahpy.supabase.co";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92b2Nuc2hvb2Rzanl0b2VhaHB5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTM2NDEsImV4cCI6MjA3Mzc2OTY0MX0.r-uug7AzRu5LmMWSU5zGquUbxydgiBk6qtbu5VfBOlg";
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-  Example server implementation (Node / Express) is provided separately.
-*/
+/* -------------------------
+   Element refs
+   ------------------------- */
+const nameInput = document.getElementById('name');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const password2Input = document.getElementById('password2');
+const togglePassword = document.getElementById('togglePassword');
+const togglePassword2 = document.getElementById('togglePassword2');
+const btnRegister = document.getElementById('btnRegister');
+const authMsg = document.getElementById('authMsg');
+const themeToggle = document.getElementById('themeToggle');
+const themeIcon = document.getElementById('themeIcon');
 
-document.addEventListener('DOMContentLoaded', () => {
-  const nameInput = document.getElementById('name');
-  const emailInput = document.getElementById('email');
-  const passwordInput = document.getElementById('password');
-  const btn = document.getElementById('btnRegister');
-  const togglePassword = document.getElementById('togglePassword');
-  const authMsg = document.getElementById('authMsg');
-
-  // toast element
-  const toast = document.createElement('div');
-  toast.id = 'globalToast';
-  toast.setAttribute('role', 'status');
-  toast.setAttribute('aria-live', 'polite');
-  Object.assign(toast.style, {
-    position: 'fixed', top: '18px', left: '50%', transform: 'translateX(-50%) translateY(-10px)',
-    padding: '12px 16px', borderRadius: '10px', boxShadow: '0 8px 30px rgba(13,18,35,0.12)',
-    background: '#111827', color: '#fff', fontWeight: '700', zIndex: 9999, opacity: '0', pointerEvents: 'none', transition: 'opacity 260ms ease, transform 260ms ease'
-  });
-  document.body.appendChild(toast);
-
-  let toastTimer = null;
-  function showToast(message = '', isError = true, duration = 3000){
-    if(toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
-    toast.textContent = message;
-    toast.style.background = isError ? '#111827' : '#059669';
-    toast.style.opacity = '1';
-    toast.style.pointerEvents = 'auto';
-    toast.style.transform = 'translateX(-50%) translateY(0)';
-    toastTimer = setTimeout(()=>{ toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-10px)'; toastTimer = null; }, duration);
-  }
-  function clearToast(){ if(toastTimer) { clearTimeout(toastTimer); toastTimer = null; } toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-10px)'; }
-
-  function setLoading(on = true){ btn.disabled = on; btn.style.opacity = on ? 0.7 : 1; btn.textContent = on ? 'Memproses...' : 'Daftar'; }
-
-  async function register(){
-    clearToast(); authMsg.textContent = '';
-    const name = nameInput.value.trim();
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
-
-    if(!name){ showToast('Nama wajib diisi!', true); nameInput.focus(); return; }
-    if(!email){ showToast('Email wajib diisi!', true); emailInput.focus(); return; }
-    if(!password){ showToast('Password wajib diisi!', true); passwordInput.focus(); return; }
-    if(password.length < 6){ showToast('Password minimal 6 karakter!', true); passwordInput.focus(); return; }
-
-    setLoading(true);
-
-    try{
-      // send to server endpoint that creates user using Supabase admin API
-      const res = await fetch('/api/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password })
-      });
-      const payload = await res.json();
-      if(!res.ok){
-        const errMsg = payload?.error || payload?.message || 'Pendaftaran gagal';
-        showToast(errMsg, true);
-        setLoading(false);
-        return;
-      }
-
-      // success
-      showToast('Pendaftaran berhasil...', false);
-      setTimeout(()=> window.location.href = 'app.html', 800);
-    }catch(e){
-      console.error(e);
-      showToast('Terjadi kesalahan. Coba lagi.', true);
-      setLoading(false);
-    }
-  }
-
-  // toggle eye
-  const svgEye = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
-  const svgEyeOff = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 19c-4.97 0-9-3.58-10-7a13.89 13.89 0 012.4-4.02M9.88 9.88A3 3 0 0115 12"/><path d="M3 3l18 18"/></svg>';
-  let visible = false;
-  function setEye(v){ visible = v; passwordInput.type = visible ? 'text' : 'password'; togglePassword.setAttribute('aria-pressed', String(visible)); togglePassword.setAttribute('aria-label', visible ? 'Sembunyikan password' : 'Tampilkan password'); togglePassword.innerHTML = visible ? svgEyeOff : svgEye; if(visible) passwordInput.focus(); }
-  setEye(false);
-  togglePassword.addEventListener('click', ()=> setEye(!visible));
-
-  // events
-  btn.addEventListener('click', register);
-  document.addEventListener('keydown', (e) => {
-    if(e.key === 'Enter' && (document.activeElement === nameInput || document.activeElement === emailInput || document.activeElement === passwordInput)){
-      register();
-    }
-  });
+/* -------------------------
+   Theme persistence
+   ------------------------- */
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+  themeIcon.innerHTML = theme === 'dark'
+    ? '<path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z\"/>'
+    : '<path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 3v1m0 16v1m8.66-12.34l-.7.7M5.34 18.66l-.7.7M21 12h1M2 12H1m16.66 6.66l-.7-.7M5.34 5.34l-.7-.7M12 5a7 7 0 100 14a7 7 0 000-14z\"/>';
+}
+const savedTheme = localStorage.getItem('theme') || 'light';
+applyTheme(savedTheme);
+themeToggle.addEventListener('click', ()=>{
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
 });
+
+/* -------------------------
+   Eye toggles (ikon di dalam input)
+   ------------------------- */
+const svgEye = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+const svgEyeOff = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 19c-4.97 0-9-3.58-10-7a13.89 13.89 0 012.4-4.02M9.88 9.88A3 3 0 0115 12"/><path d="M3 3l18 18"/></svg>';
+
+let visible1 = false;
+function setEye1(v){
+  visible1 = v;
+  passwordInput.type = visible1 ? 'text' : 'password';
+  togglePassword.setAttribute('aria-pressed', String(visible1));
+  togglePassword.setAttribute('aria-label', visible1 ? 'Sembunyikan password' : 'Tampilkan password');
+  togglePassword.innerHTML = visible1 ? svgEyeOff : svgEye;
+}
+setEye1(false);
+togglePassword.addEventListener('click', ()=> setEye1(!visible1));
+
+let visible2 = false;
+function setEye2(v){
+  visible2 = v;
+  password2Input.type = visible2 ? 'text' : 'password';
+  togglePassword2.setAttribute('aria-pressed', String(visible2));
+  togglePassword2.setAttribute('aria-label', visible2 ? 'Sembunyikan password kedua' : 'Tampilkan password kedua');
+  togglePassword2.innerHTML = visible2 ? svgEyeOff : svgEye;
+}
+setEye2(false);
+togglePassword2.addEventListener('click', ()=> setEye2(!visible2));
+
+/* -------------------------
+   Toast helper
+   ------------------------- */
+const toast = document.createElement('div');
+Object.assign(toast.style, {
+  position:'fixed',
+  top:'18px',
+  left:'50%',
+  transform:'translateX(-50%) translateY(-10px)',
+  padding:'12px 16px',
+  borderRadius:'10px',
+  boxShadow:'0 8px 30px rgba(13,18,35,0.12)',
+  background:'#111827',
+  color:'#fff',
+  fontWeight:'700',
+  zIndex:9999,
+  opacity:0,
+  transition:'opacity 220ms, transform 220ms'
+});
+document.body.appendChild(toast);
+let toastTimer = null;
+function showToast(msg, isError = true, duration = 3000){
+  if(toastTimer) clearTimeout(toastTimer);
+  toast.textContent = msg;
+  toast.style.background = isError ? '#111827' : '#059669';
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+  toastTimer = setTimeout(()=>{ toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(-10px)'; toastTimer = null; }, duration);
+}
+
+/* -------------------------
+   Validation + Register handler
+   ------------------------- */
+function setAuthMsg(text, ok = false){
+  authMsg.textContent = text;
+  authMsg.className = ok ? 'success' : '';
+}
+
+async function register(){
+  setAuthMsg('');
+  const name = nameInput.value.trim();
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+  const password2 = password2Input.value;
+
+  // basic validation
+  if(!name){ showToast('Nama wajib diisi', true); nameInput.focus(); return; }
+  if(!email){ showToast('Email wajib diisi', true); emailInput.focus(); return; }
+  if(!email.includes('@')){ showToast('Format email tidak valid', true); emailInput.focus(); return; }
+  if(!password){ showToast('Password wajib diisi', true); passwordInput.focus(); return; }
+  if(password.length < 6){ showToast('Password minimal 6 karakter', true); passwordInput.focus(); return; }
+  if(password !== password2){ showToast('Password dan konfirmasi tidak cocok', true); password2Input.focus(); return; }
+
+  btnRegister.disabled = true;
+  btnRegister.textContent = 'Memproses...';
+
+  try{
+    const { data, error } = await supabaseClient.auth.signUp({
+      email: email,
+      password: password,
+      options: { data: { full_name: name } }
+    });
+
+    if(error){
+      showToast(error.message || 'Pendaftaran gagal', true);
+      setAuthMsg(error.message || 'Pendaftaran gagal');
+      btnRegister.disabled = false;
+      btnRegister.textContent = 'Daftar';
+      return;
+    }
+
+    setAuthMsg('Pendaftaran berhasil...', true);
+
+    setTimeout(()=> window.location.href = 'index.html', 900);
+  }catch(e){
+    console.error(e);
+    showToast('Terjadi kesalahan saat mendaftar', true);
+    setAuthMsg('Terjadi kesalahan. Coba lagi.');
+    btnRegister.disabled = false;
+    btnRegister.textContent = 'Daftar';
+  }
+}
+
+/* Enter key support */
+[nameInput, emailInput, passwordInput, password2Input].forEach(inp => {
+  inp.addEventListener('keydown', (e) => { if(e.key === 'Enter') register(); });
+});
+
+/* hook button */
+btnRegister.addEventListener('click', register);
 </script>
 </body>
 </html>
